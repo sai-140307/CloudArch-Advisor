@@ -11,7 +11,7 @@ PROVIDER = os.environ.get("LLM_PROVIDER", "bedrock")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "22"))
 # tried in order if the configured model name is retired (HTTP 404)
-GEMINI_FALLBACKS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+GEMINI_FALLBACKS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
 # 404 = model retired, 429 = quota for that model used up, 5xx = model overloaded -> try the next model
 NEXT_MODEL_CODES = {404, 429, 500, 502, 503, 504}
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
@@ -78,29 +78,42 @@ def call_llm(prompt, json_mode=True, system=None):
     return _bedrock(prompt, system)
 
 
+def _thinking_options(model):
+    """Least thinking first (fastest). If a model rejects a setting (HTTP 400), try the next."""
+    if model.startswith("gemini-2.5-flash"):
+        return [{"thinkingBudget": 0}, None]
+    return [{"thinkingLevel": "minimal"}, {"thinkingLevel": "low"}, None]
+
+
+# Per-model time cap: the first model gets ~20 s; if it is slow or busy, a lighter model
+# gets the rest of the budget. Total time is bounded by LLM_TIMEOUT.
+FIRST_MODEL_CAP = float(os.environ.get("LLM_FIRST_CAP", "20"))
+
+
 def _gemini(prompt, json_mode=True, system=SYSTEM):
-    """Try the configured model, then fallbacks if a model is retired, over quota or overloaded.
-    Thinking is switched off / set low: architecture JSON does not need long reasoning
-    and thinking tokens made responses exceed the API timeout."""
+    """Try the configured model, then lighter fallbacks if a model is slow, retired,
+    over quota or overloaded."""
     import time
     if not GEMINI_KEY:
         raise RuntimeError("GEMINI_API_KEY is not set")
     deadline, last = time.time() + LLM_TIMEOUT, None
-    for model in [GEMINI_MODEL] + [m for m in GEMINI_FALLBACKS if m != GEMINI_MODEL]:
-        for thinking in (True, False):          # retry once without thinkingConfig if rejected (400)
+    models = [GEMINI_MODEL] + [m for m in GEMINI_FALLBACKS if m != GEMINI_MODEL]
+    for n, model in enumerate(models):
+        for thinking in _thinking_options(model):
             left = deadline - time.time()
-            if left < 5:
+            if left < 4:
                 raise last or RuntimeError("Gemini timed out")
+            cap = min(left, FIRST_MODEL_CAP) if n == 0 else left
             try:
-                return _gemini_call(model, prompt, thinking, min(left, 45), json_mode, system)
+                return _gemini_call(model, prompt, thinking, cap, json_mode, system)
             except TimeoutError:
-                last = RuntimeError(f"Gemini {model} timed out")
+                last = RuntimeError(f"Gemini {model} timed out after {cap:.0f}s")
                 print(last)
                 break
             except urllib.error.HTTPError as e:
                 last = RuntimeError(f"Gemini {model} HTTP {e.code}: {e.read()[:300]!r}")
                 print(last)
-                if e.code == 400 and thinking:
+                if e.code == 400 and thinking is not None:
                     continue
                 if e.code in NEXT_MODEL_CODES:
                     break
@@ -118,8 +131,7 @@ def _gemini_call(model, prompt, thinking, timeout, json_mode=True, system=SYSTEM
     if json_mode:
         cfg["responseMimeType"] = "application/json"
     if thinking:
-        cfg["thinkingConfig"] = ({"thinkingBudget": 0} if model.startswith("gemini-2.5-flash")
-                                 else {"thinkingLevel": "low"})
+        cfg["thinkingConfig"] = thinking
     body = {"systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": cfg}
@@ -127,7 +139,7 @@ def _gemini_call(model, prompt, thinking, timeout, json_mode=True, system=SYSTEM
                                  {"Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY})
     with urllib.request.urlopen(req, timeout=timeout) as f:
         j = json.load(f)
-    print(f"Gemini model used: {model}")
+    print(f"Gemini model used: {model} thinking={thinking}")
     return "".join(p.get("text", "") for p in j["candidates"][0]["content"]["parts"] if not p.get("thought"))
 
 
