@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CloudArch Advisor</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16202c;--mut:#5d6b7a;--line:#dfe4ea;--acc:#0b6bcb;--acc2:#e8f1fb;--ok:#1a7f4b;--bad:#b42318;--warn:#b54708}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1720;--card:#17212c;--ink:#e8edf2;--mut:#93a1b0;--line:#2a3745;--acc:#5aa9f5;--acc2:#18304a;--ok:#4cc38a;--bad:#f97066;--warn:#fdb022}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:20px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+h1{margin:0;font-size:22px} h1 span{color:var(--acc)}
+header p{margin:4px 0 0;color:var(--mut)}
+main{padding:20px 0 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:3px;font-weight:600}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:64px;resize:vertical}
+.checks{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px}
+.checks label{display:flex;gap:6px;align-items:center;margin:0;font-weight:500;color:var(--ink);font-size:14px}
+.checks input{width:auto}
+button{cursor:pointer;border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600}
+.primary{background:var(--acc);color:#fff}.primary:disabled{opacity:.6;cursor:wait}
+.ghost{background:var(--acc2);color:var(--acc);padding:6px 12px;font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:8px 14px}
+.tab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.kpis{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+.kpi{flex:1;min-width:130px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font-size:22px}.kpi small{color:var(--mut)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.bar{display:grid;grid-template-columns:170px 1fr 34px;gap:10px;align-items:center;margin:6px 0;font-size:13.5px}
+.track{height:10px;background:var(--bg);border-radius:6px;border:1px solid var(--line);overflow:hidden}
+.fill{height:100%;background:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{background:var(--acc2);color:var(--acc);border-radius:999px;padding:3px 10px;font-size:12.5px}
+.chip.g{background:#fdecea;color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:600}td.n,th.n{text-align:right}
+pre{background:var(--bg);border:1px solid var(--line);padding:10px;border-radius:8px;overflow:auto;font-size:12.5px}
+.mer{overflow:auto;background:#fff;border-radius:8px;padding:8px;border:1px solid var(--line)}
+.note{font-size:13px;color:var(--warn);margin:4px 0}
+.src{font-size:13px;border-left:3px solid var(--acc);padding:4px 10px;margin:8px 0;background:var(--bg)}
+.hide{display:none}
+h3{margin:18px 0 6px;font-size:15px}
+.cmp td.best{font-weight:700;color:var(--ok)}
+.cmpwrap{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+#radar svg{max-width:100%;height:auto}
+.lg{display:flex;gap:14px;justify-content:center;font-size:12.5px;margin-top:4px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+@media print{header,.noprint,#hist,.row button{display:none!important}body{background:#fff;color:#000}.card{border:1px solid #ccc;break-inside:avoid}#out{display:block!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>CloudArch <span>Advisor</span></h1>
+  <p>Generative-AI + RAG architecture recommendations for startups on AWS, scored against the Well-Architected Framework.</p>
+</div></header>
+
+<main class="wrap">
+<div class="card noprint">
+  <div class="row" style="margin-top:0"><b>Quick scenarios:</b>
+    <button class="ghost" data-s="edtech">EdTech app</button>
+    <button class="ghost" data-s="fintech">Fintech (PCI)</button>
+    <button class="ghost" data-s="health">HealthTech (HIPAA)</button>
+    <button class="ghost" data-s="ecom">E-commerce</button>
+  </div>
+  <div class="grid" style="margin-top:14px">
+    <div><label>Application type</label><input id="app_type" value="Online learning platform"></div>
+    <div><label>Monthly active users</label><input id="monthly_users" type="number" value="3000"></div>
+    <div><label>Monthly budget (USD)</label><input id="budget" type="number" value="100"></div>
+    <div><label>Engineering team size</label><input id="team_size" type="number" value="3"></div>
+    <div><label>Compliance</label>
+      <select id="compliance"><option value="none">None</option><option value="gdpr">GDPR</option><option value="soc2">SOC 2</option><option value="pci">PCI DSS</option><option value="hipaa">HIPAA</option></select></div>
+    <div><label>Target availability (%)</label>
+      <select id="availability"><option>99</option><option selected>99.9</option><option>99.95</option><option>99.99</option></select></div>
+  </div>
+  <div style="margin-top:12px"><label>Describe the startup / product</label>
+    <textarea id="description">Video lessons, quizzes and live doubt-solving sessions for school students. Traffic peaks in the evenings.</textarea></div>
+  <div class="checks">
+    <label><input type="checkbox" id="needs_ai"> AI features</label>
+    <label><input type="checkbox" id="needs_search"> Full-text search</label>
+    <label><input type="checkbox" id="needs_realtime"> Real-time streaming</label>
+    <label><input type="checkbox" id="use_rag" checked> Use RAG knowledge base</label>
+  </div>
+  <div class="row"><button class="primary" id="go">Recommend architecture</button><span id="status" class="mut" style="color:var(--mut)"></span></div>
+</div>
+
+<div id="out" class="hide">
+  <div class="card">
+    <div class="tabs" id="tabs"></div>
+    <div id="opt"></div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">Side-by-side comparison</h3>
+    <div class="cmpwrap"><div id="radar"></div><div id="cmp" style="flex:1;min-width:280px"></div></div></div>
+  <div class="card"><h3 style="margin-top:0">Retrieved knowledge (RAG sources)</h3><div id="srcs"></div></div>
+  <div class="card"><h3 style="margin-top:0">Run details</h3><pre id="meta"></pre></div>
+</div>
+<div class="card noprint"><h3 style="margin-top:0">Recent requests</h3><div id="hist" style="color:var(--mut)">Loading…</div></div>
+</main>
+
+<script>
+const HAS_MER=typeof window.mermaid!=='undefined';
+if(HAS_MER)mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'default'});
+const $=id=>document.getElementById(id);
+const PIL=[["ops","Operational Excellence"],["sec","Security"],["rel","Reliability"],["perf","Performance Efficiency"],["cost","Cost Optimization"],["sus","Sustainability"]];
+const SC={
+ edtech:{app_type:"Online learning platform",monthly_users:3000,budget:100,team_size:3,compliance:"none",availability:"99.9",description:"Video lessons, quizzes and live doubt-solving for school students. Traffic peaks in the evenings.",needs_ai:true},
+ fintech:{app_type:"Peer-to-peer payments app",monthly_users:60000,budget:1200,team_size:8,compliance:"pci",availability:"99.99",description:"Mobile wallet with card payments and instant transfers. Downtime directly loses money.",needs_realtime:true},
+ health:{app_type:"Telemedicine platform",monthly_users:15000,budget:600,team_size:5,compliance:"hipaa",availability:"99.95",description:"Video consultations and electronic health records for clinics.",needs_ai:true},
+ ecom:{app_type:"E-commerce store",monthly_users:40000,budget:500,team_size:4,compliance:"gdpr",availability:"99.9",description:"Fashion store with product search, carts and flash sales on weekends.",needs_search:true}
+};
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{
+  const s=SC[b.dataset.s];
+  ["app_type","monthly_users","budget","team_size","compliance","availability","description"].forEach(k=>$(k).value=s[k]);
+  ["needs_ai","needs_search","needs_realtime"].forEach(k=>$(k).checked=!!s[k]);
+});
+let DATA=null, CUR=0, SEQ=0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('go').onclick=async()=>{
+  const body={};
+  ["app_type","monthly_users","budget","team_size","compliance","availability","description"].forEach(k=>body[k]=$(k).value);
+  ["needs_ai","needs_search","needs_realtime","use_rag"].forEach(k=>body[k]=$(k).checked);
+  $('go').disabled=true;$('status').textContent='Retrieving knowledge and designing architectures… (10–25 s)';
+  try{
+    const r=await fetch('api/recommend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
+    DATA=j;CUR=1;render();$('out').classList.remove('hide');$('status').textContent='Done in '+j.timings.total_s+' s';
+    $('out').scrollIntoView({behavior:'smooth'}); loadHist();
+  }catch(e){$('status').textContent='Error: '+e.message}
+  $('go').disabled=false;
+};
+function render(){
+  $('tabs').innerHTML=DATA.options.map((o,i)=>`<button class="tab ${i==CUR?'on':''}" onclick="CUR=${i};render()">${o.name}</button>`).join('');
+  const o=DATA.options[CUR];
+  const bars=PIL.map(([k,l])=>`<div class="bar"><span>${l}</span><div class="track"><div class="fill" style="width:${o.scores[k]*20}%"></div></div><b>${o.scores[k]}</b></div>`).join('');
+  const rows=o.components.map(c=>`<tr><td>${esc(c.name)}</td><td class="n">$${c.cost.toFixed(2)}</td></tr>`).join('');
+  $('opt').innerHTML=`
+   <div class="kpis">
+    <div class="kpi"><b>$${o.monthly_cost.toLocaleString()}</b><small>est. / month</small></div>
+    <div class="kpi"><b class="${o.within_budget?'ok':'bad'}">${o.within_budget?'Within':'Over'}</b><small>budget $${DATA.requirements.budget.toLocaleString()}</small></div>
+    <div class="kpi"><b>${o.scores.overall}/5</b><small>Well-Architected score</small></div>
+    <div class="kpi"><b>${o.components.length}</b><small>AWS components</small></div>
+    <div class="kpi"><b>${o.source==='llm'?'GenAI':'Fallback'}</b><small>generated by</small></div>
+   </div>
+   <h3>Why this architecture</h3><p>${esc(o.reasoning||'')}</p>
+   <p style="color:var(--mut)"><b>Trade-offs:</b> ${esc(o.tradeoffs||'')}</p>
+   ${o.notes.map(n=>`<div class="note">⚠ ${esc(n)}</div>`).join('')}
+   <h3>Well-Architected pillar scores</h3>${bars}
+   <h3>Architecture diagram</h3><div class="mer" id="mer"></div>
+   <div class="row"><button class="ghost" onclick="navigator.clipboard.writeText(DATA.options[CUR].diagram)">Copy Mermaid code</button>
+   <button class="ghost" onclick="dlCfn()">Download CloudFormation template</button>
+   <button class="ghost" onclick="dl()">Download JSON</button>
+   <button class="ghost" onclick="window.print()">Save as PDF</button></div>
+   <h3>Generated infrastructure-as-code (CloudFormation starter)</h3>
+   <details><summary style="cursor:pointer;color:var(--acc)">Show template</summary><pre>${esc(o.cloudformation)}</pre></details>
+   <h3>Cost breakdown (monthly estimate)</h3><table><tr><th>Component</th><th class="n">USD</th></tr>${rows}
+   <tr><td><b>Total</b></td><td class="n"><b>$${o.monthly_cost.toFixed(2)}</b></td></tr></table>
+   ${o.invalid_components.length?`<h3>Hallucinated services rejected</h3><div class="chips">${o.invalid_components.map(x=>`<span class="chip g">${esc(x)}</span>`).join('')}</div>`:''}
+   ${o.guardrail_added.length?`<h3>Added by guardrails</h3><div class="chips">${o.guardrail_added.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`:''}`;
+  const id='m'+(++SEQ);
+  if(!HAS_MER){$('mer').innerHTML='<pre>'+esc(o.diagram)+'</pre><small>Diagram library could not load (offline). Paste this code at mermaid.live to view.</small>'}
+  else mermaid.render(id,o.diagram).then(r=>{$('mer').innerHTML=r.svg}).catch(e=>{$('mer').innerHTML='<pre>'+esc(o.diagram)+'</pre>'});
+  // comparison
+  const best=(f,hi)=>{const v=DATA.options.map(f);const t=hi?Math.max(...v):Math.min(...v);return v.map(x=>x===t)};
+  const rowsC=[["Monthly cost ($)",x=>x.monthly_cost,false],["Overall score",x=>x.scores.overall,true],...PIL.map(([k,l])=>[l,x=>x.scores[k],true])];
+  $('cmp').innerHTML='<table class="cmp"><tr><th></th>'+DATA.options.map(o=>`<th class="n">${o.name}</th>`).join('')+'</tr>'+
+   rowsC.map(([l,f,hi])=>{const b=best(f,hi);return `<tr><td>${l}</td>`+DATA.options.map((o,i)=>`<td class="n ${b[i]?'best':''}">${f(o)}</td>`).join('')+'</tr>'}).join('')+'</table>';
+  radar();
+  $('srcs').innerHTML=DATA.sources.length?DATA.sources.map(s=>`<div class="src"><b>${esc(s.source)}</b> · similarity ${s.score}<br>${esc(s.text)}…</div>`).join(''):'<i>RAG disabled for this run (baseline: model answers from its own memory only).</i>';
+  $('meta').textContent=JSON.stringify({model:DATA.model,rag:DATA.requirements.use_rag,timings:DATA.timings,llm_error:DATA.llm_error},null,2);
+}
+const COL=['#0b6bcb','#1a9e5c','#d9822b'];
+function radar(){
+  const W=320,H=300,cx=W/2,cy=H/2+4,R=110,n=PIL.length;
+  const pt=(i,v)=>{const a=-Math.PI/2+i*2*Math.PI/n;return [cx+R*v/5*Math.cos(a),cy+R*v/5*Math.sin(a)]};
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" role="img" aria-label="Pillar radar chart">`;
+  for(let r=1;r<=5;r++){s+=`<polygon points="${PIL.map((_,i)=>pt(i,r).join(',')).join(' ')}" style="fill:none;stroke:var(--line)"/>`}
+  PIL.forEach(([k,l],i)=>{const [x,y]=pt(i,5);const [lx,ly]=pt(i,6.1);
+    s+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" style="stroke:var(--line)"/><text x="${lx}" y="${ly}" font-size="10.5" style="fill:var(--mut)" text-anchor="middle" dominant-baseline="middle">${l.split(' ')[0]}</text>`});
+  DATA.options.forEach((o,j)=>{s+=`<polygon points="${PIL.map(([k],i)=>pt(i,o.scores[k]).join(',')).join(' ')}" fill="${COL[j]}" fill-opacity=".12" stroke="${COL[j]}" stroke-width="2"/>`});
+  s+='</svg><div class="lg">'+DATA.options.map((o,j)=>`<span><i style="background:${COL[j]}"></i>${o.name}</span>`).join('')+'</div>';
+  $('radar').innerHTML=s;
+}
+function dlCfn(){const o=DATA.options[CUR];const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([o.cloudformation],{type:'text/yaml'}));a.download=o.name.toLowerCase().replace(/[^a-z]+/g,'-')+'-template.yaml';a.click()}
+function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'}));a.download='architecture-'+DATA.id+'.json';a.click()}
+async function loadHist(){
+  try{const r=await fetch('api/history');const h=await r.json();
+   $('hist').innerHTML=h.length?'<table><tr><th>App</th><th class="n">Users</th><th class="n">Budget</th><th>Compliance</th><th>RAG</th></tr>'+h.map(x=>`<tr><td>${esc(x.app_type)}</td><td class="n">${x.users}</td><td class="n">$${x.budget}</td><td>${esc(x.compliance)}</td><td>${x.use_rag?'on':'off'}</td></tr>`).join('')+'</table>':'No requests yet.'}
+  catch(e){$('hist').textContent='History unavailable.'}
+}
+loadHist();
+</script>
+</body>
+</html>

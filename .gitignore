@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+packaged.yaml
+eval_results.csv
+.env
+.vercel

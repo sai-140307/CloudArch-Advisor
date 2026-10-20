@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudArch Advisor - GenAI + RAG cloud architecture recommendation framework for startups (serverless).
+
+Parameters:
+  LlmProvider:
+    Type: String
+    Default: bedrock
+    AllowedValues: [bedrock, gemini]
+    Description: Generation model provider. bedrock = Amazon Bedrock (default); gemini = Google Gemini API (for accounts where Bedrock is blocked).
+  ModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Bedrock model ID used for generation (Converse API).
+  GeminiModel:
+    Type: String
+    Default: gemini-flash-latest
+    Description: Gemini model name (only used when LlmProvider=gemini).
+  GeminiApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Gemini API key (only used when LlmProvider=gemini).
+  Retriever:
+    Type: String
+    Default: auto
+    AllowedValues: [auto, titan, bm25]
+    Description: RAG retriever. titan = dense Bedrock embeddings; bm25 = lexical ranking; auto = titan if reachable, else bm25.
+  EmbedModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: Bedrock embedding model used for dense retrieval.
+  ApiType:
+    Type: String
+    Default: httpapi
+    AllowedValues: [httpapi, functionurl]
+    Description: Public endpoint. httpapi = Amazon API Gateway; functionurl = Lambda Function URL (for accounts that block API Gateway).
+  ExistingRoleArn:
+    Type: String
+    Default: ''
+    Description: Optional. Use an existing IAM role (e.g. LabRole in AWS Academy) instead of creating one.
+  EnableDashboard:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Create the CloudWatch dashboard and alarm.
+  HistoryStore:
+    Type: String
+    Default: dynamodb
+    AllowedValues: [dynamodb, s3]
+    Description: Where request history is kept (s3 for accounts that block DynamoDB).
+
+Conditions:
+  UseDdb: !Equals [!Ref HistoryStore, dynamodb]
+  CreateRole: !Equals [!Ref ExistingRoleArn, '']
+  MakeDashboard: !Equals [!Ref EnableDashboard, 'true']
+  UseHttpApi: !Equals [!Ref ApiType, httpapi]
+  UseUrl: !Equals [!Ref ApiType, functionurl]
+  DashApi: !And [!Condition MakeDashboard, !Condition UseHttpApi]
+  DashUrl: !And [!Condition MakeDashboard, !Condition UseUrl]
+
+Resources:
+  # ---------- Storage: knowledge-base documents + retrieval index (S3)
+  KnowledgeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags: [{ Key: project, Value: cloudarch-advisor }]
+
+  # ---------- Request history (DynamoDB, on-demand)
+  HistoryTable:
+    Type: AWS::DynamoDB::Table
+    Condition: UseDdb
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{ AttributeName: id, AttributeType: S }]
+      KeySchema: [{ AttributeName: id, KeyType: HASH }]
+      SSESpecification: { SSEEnabled: true }
+      Tags: [{ Key: project, Value: cloudarch-advisor }]
+
+  # ---------- Least-privilege IAM role for the function
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Condition: CreateRole
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+        - PolicyName: advisor-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub '${KnowledgeBucket.Arn}/*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt KnowledgeBucket.Arn
+              - !If
+                - UseDdb
+                - Effect: Allow
+                  Action: [dynamodb:PutItem, dynamodb:Scan]
+                  Resource: !GetAtt HistoryTable.Arn
+                - !Ref AWS::NoValue
+              - Effect: Allow
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource: '*'
+
+  # ---------- Compute: one Lambda serves the UI and the API
+  AdvisorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Timeout: 120
+      MemorySize: 512
+      Role: !If [CreateRole, !GetAtt FunctionRole.Arn, !Ref ExistingRoleArn]
+      Code: backend/
+      TracingConfig: { Mode: !If [CreateRole, Active, PassThrough] }
+      Environment:
+        Variables:
+          KB_BUCKET: !Ref KnowledgeBucket
+          TABLE_NAME: !If [UseDdb, !Ref HistoryTable, '']
+          LLM_PROVIDER: !Ref LlmProvider
+          MODEL_ID: !Ref ModelId
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          RETRIEVER: !Ref Retriever
+          LLM_TIMEOUT: !If [UseHttpApi, '22', '80']
+          EMBED_MODEL: !Ref EmbedModelId
+      Tags: [{ Key: project, Value: cloudarch-advisor }]
+
+  FunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AdvisorFunction}'
+      RetentionInDays: 7
+
+  # ---------- Option A: API Gateway HTTP API (quick-create: $default route + stage)
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Condition: UseHttpApi
+    Properties:
+      Name: cloudarch-advisor-api
+      ProtocolType: HTTP
+      Target: !GetAtt AdvisorFunction.Arn
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseHttpApi
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AdvisorFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
+  # ---------- Option B: Lambda Function URL (HTTPS endpoint without API Gateway)
+  FunctionUrl:
+    Type: AWS::Lambda::Url
+    Condition: UseUrl
+    Properties:
+      TargetFunctionArn: !GetAtt AdvisorFunction.Arn
+      AuthType: NONE
+
+  FunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseUrl
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName: !Ref AdvisorFunction
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  FunctionUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseUrl
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AdvisorFunction
+      Principal: '*'
+
+  # ---------- Observability: CloudWatch dashboard + error alarm for the advisor itself
+  OpsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Condition: DashApi
+    Properties:
+      DashboardName: !Sub '${AWS::StackName}-ops'
+      DashboardBody: !Sub |
+        {"widgets":[
+         {"type":"metric","x":0,"y":0,"width":12,"height":6,"properties":{"title":"Requests (Lambda invocations) and errors","region":"${AWS::Region}","stat":"Sum","period":60,
+           "metrics":[["AWS/Lambda","Invocations","FunctionName","${AdvisorFunction}"],[".","Errors",".","."],[".","Throttles",".","."]]}},
+         {"type":"metric","x":12,"y":0,"width":12,"height":6,"properties":{"title":"Lambda duration (ms)","region":"${AWS::Region}","period":60,
+           "metrics":[["AWS/Lambda","Duration","FunctionName","${AdvisorFunction}",{"stat":"Average"}],["...",{"stat":"p90"}],["...",{"stat":"Maximum"}]]}},
+         {"type":"metric","x":0,"y":6,"width":12,"height":6,"properties":{"title":"API Gateway requests and 5xx","region":"${AWS::Region}","stat":"Sum","period":60,
+           "metrics":[["AWS/ApiGateway","Count","ApiId","${HttpApi}"],[".","5xx",".","."],[".","4xx",".","."]]}},
+         {"type":"metric","x":12,"y":6,"width":12,"height":6,"properties":{"title":"API latency (ms)","region":"${AWS::Region}","period":60,
+           "metrics":[["AWS/ApiGateway","Latency","ApiId","${HttpApi}",{"stat":"p90"}],["...",{"stat":"Average"}]]}},
+         {"type":"log","x":0,"y":12,"width":24,"height":6,"properties":{"title":"Recent errors and fallbacks","region":"${AWS::Region}",
+           "query":"SOURCE '/aws/lambda/${AdvisorFunction}' | fields @timestamp, @message | filter @message like /ERROR|failed/ | sort @timestamp desc | limit 20"}}
+        ]}
+
+  OpsDashboardUrl:
+    Type: AWS::CloudWatch::Dashboard
+    Condition: DashUrl
+    Properties:
+      DashboardName: !Sub '${AWS::StackName}-ops'
+      DashboardBody: !Sub |
+        {"widgets":[
+         {"type":"metric","x":0,"y":0,"width":12,"height":6,"properties":{"title":"Requests (Lambda invocations) and errors","region":"${AWS::Region}","stat":"Sum","period":60,
+           "metrics":[["AWS/Lambda","Invocations","FunctionName","${AdvisorFunction}"],[".","Errors",".","."],[".","Throttles",".","."]]}},
+         {"type":"metric","x":12,"y":0,"width":12,"height":6,"properties":{"title":"Lambda duration (ms)","region":"${AWS::Region}","period":60,
+           "metrics":[["AWS/Lambda","Duration","FunctionName","${AdvisorFunction}",{"stat":"Average"}],["...",{"stat":"p90"}],["...",{"stat":"Maximum"}]]}},
+         {"type":"metric","x":0,"y":6,"width":12,"height":6,"properties":{"title":"Concurrent executions","region":"${AWS::Region}","stat":"Maximum","period":60,
+           "metrics":[["AWS/Lambda","ConcurrentExecutions","FunctionName","${AdvisorFunction}"]]}},
+         {"type":"log","x":12,"y":6,"width":12,"height":6,"properties":{"title":"Recent errors and fallbacks","region":"${AWS::Region}",
+           "query":"SOURCE '/aws/lambda/${AdvisorFunction}' | fields @timestamp, @message | filter @message like /ERROR|failed/ | sort @timestamp desc | limit 20"}}
+        ]}
+
+  ErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: MakeDashboard
+    Properties:
+      AlarmDescription: CloudArch Advisor function is returning errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref AdvisorFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  DashboardUrl:
+    Condition: MakeDashboard
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${AWS::StackName}-ops'
+  AppUrl:
+    Value: !If [UseHttpApi, !GetAtt HttpApi.ApiEndpoint, !GetAtt FunctionUrl.FunctionUrl]
+    Description: Open this URL in a browser
+  KnowledgeBucketName:
+    Value: !Ref KnowledgeBucket
+  FunctionName:
+    Value: !Ref AdvisorFunction
