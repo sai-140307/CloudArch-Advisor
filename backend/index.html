@@ -9,7 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
   --paper:#EEF2F6;--panel:#FFFFFF;--panel-2:#F6F8FB;--ink:#0B1F33;--ink-2:#46596D;--ink-3:#6B7C8F;
@@ -764,16 +765,30 @@ async function buildReport(){
   </div><div class="pb"></div><div style="${css}">${h2(`Appendix. CloudFormation starter (${esc(rec.name)})`)}
   <pre style="font-family:Consolas,monospace;font-size:7.5pt;line-height:1.35;white-space:pre-wrap;border:1px solid #D5DEE8;padding:8px;background:#F6F8FB">${esc(rec.cloudformation)}</pre></div>`;
   return h}
+/* PDF: each report section is drawn to a canvas, then placed on A4 pages. Long sections are
+   split only at blank pixel rows, so text lines and table rows are never cut in half. */
+async function sectionCanvas(html){
+  const host=document.createElement("div");
+  host.style.cssText="position:fixed;left:-12000px;top:0;width:760px;background:#fff;color:#0B1F33";
+  host.innerHTML=html;document.body.appendChild(host);
+  await Promise.all([...host.querySelectorAll("img")].map(im=>im.complete?0:new Promise(r=>{im.onload=im.onerror=r})));
+  try{return await html2canvas(host,{scale:2,backgroundColor:"#ffffff",useCORS:true,windowWidth:800,logging:false})}finally{host.remove()}}
+function safeCut(c,y,minY){const g=c.getContext("2d");
+  for(let yy=y;yy>minY;yy-=2){const d=g.getImageData(0,yy,c.width,1).data;let blank=true;
+    for(let i=0;i<d.length;i+=24){if(d[i]<240||d[i+1]<240||d[i+2]<240){blank=false;break}}if(blank)return yy}return y}
+async function makePdf(sections,filename){
+  const pdf=new window.jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait"});
+  const M=12,W=210-2*M,H=297-2*M-8;let first=true;
+  for(const s of sections){const c=await sectionCanvas(s),px=c.width/W,pageH=Math.floor(H*px);let y=0;
+    while(y<c.height-4){let end=Math.min(c.height,y+pageH);if(end<c.height)end=safeCut(c,end,y+Math.floor(pageH*.45));
+      const part=document.createElement("canvas");part.width=c.width;part.height=end-y;part.getContext("2d").drawImage(c,0,y,c.width,end-y,0,0,c.width,end-y);
+      if(!first)pdf.addPage();first=false;pdf.addImage(part.toDataURL("image/jpeg",.92),"JPEG",M,M,W,(end-y)/px);y=end}}
+  const n=pdf.getNumberOfPages(),title=(DATA.requirements.app_type||"").replace(/[^\x20-\x7E]/g,"");
+  for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFontSize(8);pdf.setTextColor(110);pdf.text(`CloudArch Advisor - ${title} - architecture report`,M,297-7);pdf.text(`Page ${i} of ${n}`,210-M,297-7,{align:"right"})}
+  pdf.save(filename)}
 $("#pdfBtn").onclick=async()=>{const b=$("#pdfBtn");b.disabled=true;const lbl=b.lastChild.textContent;b.lastChild.textContent="Preparing PDF…";
   try{const html=await buildReport();
-    if(window.html2pdf){
-      // One section per page: render each section separately so headings, diagrams and tables never split oddly.
-      const secs=html.split('<div class="pb"></div>');
-      const opt={margin:[12,12,14,12],filename:`${slug()}-architecture-report.pdf`,image:{type:"jpeg",quality:.95},
-        html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["avoid-all"]}};
-      let w=html2pdf().set(opt).from(secs[0]).toPdf();
-      for(const s of secs.slice(1)){w=w.get("pdf").then(pdf=>{pdf.addPage()}).from(s).toContainer().toCanvas().toPdf()}
-      await w.save();toast("Report downloaded")}
+    if(window.jspdf&&window.html2canvas){await makePdf(html.split('<div class="pb"></div>'),`${slug()}-architecture-report.pdf`);toast("Report downloaded")}
     else{const w=open("","_blank");w.document.write(`<title>Architecture report</title><body style="margin:24px">${html}<script>print()<\/script></body>`);w.document.close()}}
   catch(e){toast("The PDF could not be created: "+e.message)}finally{b.disabled=false;b.lastChild.textContent=lbl}};
 $("#docBtn").onclick=async()=>{const html=await buildReport();
