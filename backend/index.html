@@ -70,7 +70,12 @@ textarea.input{min-height:96px;resize:vertical}
 .err{color:var(--bad);font-size:14px;min-height:20px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg)}
 
-/* ---------------- auth screen */
+/* ---------------- account dialog */
+dialog#authDlg{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);color:var(--ink);padding:28px;width:min(440px,calc(100vw - 32px));box-shadow:var(--shadow)}
+dialog#authDlg::backdrop{background:rgba(8,19,31,.55)}
+.dlg-x{position:absolute;top:10px;right:10px}
+#authTitle{padding-right:64px}
+/* ---------------- (legacy auth screen styles) */
 #auth{min-height:100vh;display:grid;grid-template-columns:1.15fr .85fr}
 .auth-art{position:relative;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;gap:32px;background:var(--sheet);
   background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
@@ -282,56 +287,28 @@ details summary{cursor:pointer;font-weight:620;color:var(--cobalt)}
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-2.5-6.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
 </svg>
 
-<!-- ======================= SIGN IN ======================= -->
-<section id="auth" class="hide" aria-label="Sign in">
-  <div class="auth-art">
-    <div class="brand"><svg><use href="#i-logo"/></svg>CloudArch Advisor</div>
+<!-- ======================= OPTIONAL ACCOUNT DIALOG ======================= -->
+<dialog id="authDlg" aria-labelledby="authTitle">
+  <form method="dialog" class="dlg-x"><button class="btn ghost" aria-label="Close">Close</button></form>
+  <div class="auth-card">
     <div>
-      <h1>Describe your startup. Get three AWS architectures you can defend.</h1>
-      <p class="lead">Each design comes with a monthly cost, scores on the six Well-Architected pillars, a diagram and a CloudFormation starter template, grounded in AWS guidance through retrieval-augmented generation.</p>
+      <h2 id="authTitle">Sign in to CloudArch Advisor</h2>
+      <p class="muted" id="authSub" style="margin-top:6px">Optional. An account keeps your designs in one place. Use a new password that you do not use on any other site.</p>
     </div>
-    <div class="art" aria-hidden="true">
-      <svg viewBox="0 0 640 250" fill="none" stroke="currentColor" stroke-width="1.4" font-family="Archivo, sans-serif" font-size="12">
-        <rect x="8" y="88" width="92" height="44" rx="6"/><text x="54" y="114" text-anchor="middle" fill="currentColor" stroke="none">Users</text>
-        <path d="M100 110h38" marker-end="url(#ah)"/>
-        <rect x="140" y="88" width="110" height="44" rx="6"/><text x="195" y="114" text-anchor="middle" fill="currentColor" stroke="none">CloudFront + WAF</text>
-        <path d="M250 110h38" marker-end="url(#ah)"/>
-        <rect x="290" y="70" width="120" height="80" rx="6" stroke-dasharray="4 3"/><text x="350" y="92" text-anchor="middle" fill="currentColor" stroke="none" font-weight="600">Compute</text>
-        <rect x="305" y="102" width="90" height="34" rx="5"/><text x="350" y="123" text-anchor="middle" fill="currentColor" stroke="none">Lambda</text>
-        <path d="M410 95 L462 52" marker-end="url(#ah)"/><path d="M410 110h52" marker-end="url(#ah)"/><path d="M410 125 L462 168" marker-end="url(#ah)"/>
-        <rect x="464" y="30" width="120" height="40" rx="6"/><text x="524" y="54" text-anchor="middle" fill="currentColor" stroke="none">DynamoDB</text>
-        <rect x="464" y="90" width="120" height="40" rx="6"/><text x="524" y="114" text-anchor="middle" fill="currentColor" stroke="none">S3</text>
-        <rect x="464" y="150" width="120" height="40" rx="6"/><text x="524" y="174" text-anchor="middle" fill="currentColor" stroke="none">SQS</text>
-        <rect x="380" y="205" width="252" height="40" stroke-width="1.6"/><path d="M380 225h252M506 205v40" stroke-width="1"/>
-        <text x="390" y="220" fill="currentColor" stroke="none" font-size="9.5" opacity=".7">Option</text><text x="390" y="239" fill="currentColor" stroke="none" font-weight="600">Balanced</text>
-        <text x="516" y="220" fill="currentColor" stroke="none" font-size="9.5" opacity=".7">Est. monthly</text><text x="516" y="239" fill="currentColor" stroke="none" font-weight="600">$206</text>
-        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="currentColor" stroke="none"/></marker></defs>
-      </svg>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" id="tabIn" type="button">Sign in</button>
+      <button role="tab" aria-selected="false" id="tabUp" type="button">Create account</button>
     </div>
+    <form id="authForm" class="stack" style="gap:14px" novalidate>
+      <div class="field hide" id="fName"><label for="aName">Name</label><input class="input" id="aName" autocomplete="name"></div>
+      <div class="field"><label for="aEmail">Email</label><input class="input" id="aEmail" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="aPass">CloudArch Advisor password</label><input class="input" id="aPass" type="password" autocomplete="current-password" required minlength="8"><span class="small muted hide" id="passHint">At least 8 characters. Do not reuse a password from another site.</span></div>
+      <p class="err" id="authErr" role="alert"></p>
+      <button class="btn primary" id="authBtn" type="submit" style="justify-content:center">Sign in</button>
+    </form>
+    <p class="small muted">Student project for BCSE355L Cloud Architecture Design.</p>
   </div>
-  <div class="auth-form">
-    <div class="auth-card">
-      <div>
-        <h2 id="authTitle">Sign in</h2>
-        <p class="muted" id="authSub" style="margin-top:6px">Your designs are saved to your account.</p>
-      </div>
-      <div class="tabs" role="tablist">
-        <button role="tab" aria-selected="true" id="tabIn">Sign in</button>
-        <button role="tab" aria-selected="false" id="tabUp">Create account</button>
-      </div>
-      <form id="authForm" class="stack" style="gap:14px" novalidate>
-        <div class="field hide" id="fName"><label for="aName">Name</label><input class="input" id="aName" autocomplete="name"></div>
-        <div class="field"><label for="aEmail">Email</label><input class="input" id="aEmail" type="email" autocomplete="email" required></div>
-        <div class="field"><label for="aPass">Password</label><input class="input" id="aPass" type="password" autocomplete="current-password" required minlength="8"><span class="small muted hide" id="passHint">At least 8 characters.</span></div>
-        <p class="err" id="authErr" role="alert"></p>
-        <button class="btn primary" id="authBtn" type="submit" style="justify-content:center">Sign in</button>
-      </form>
-      <div class="or">or</div>
-      <button class="btn" id="guestBtn" style="justify-content:center">Continue as guest</button>
-      <p class="small muted">Guest designs are shared on this demo and are not tied to an account.</p>
-    </div>
-  </div>
-</section>
+</dialog>
 
 <!-- ======================= APP ======================= -->
 <div id="shell" class="hide">
@@ -548,20 +525,19 @@ let MODE="in";
 function authMode(m){MODE=m;const up=m==="up";
   $("#tabIn").setAttribute("aria-selected",!up);$("#tabUp").setAttribute("aria-selected",up);
   $("#fName").classList.toggle("hide",!up);$("#passHint").classList.toggle("hide",!up);
-  $("#authTitle").textContent=up?"Create your account":"Sign in";$("#authBtn").textContent=up?"Create account":"Sign in";
-  $("#authSub").textContent=up?"Save designs and come back to them later.":"Your designs are saved to your account.";
+  $("#authTitle").textContent=up?"Create a CloudArch Advisor account":"Sign in to CloudArch Advisor";$("#authBtn").textContent=up?"Create account":"Sign in";
+  
   $("#aPass").autocomplete=up?"new-password":"current-password";$("#authErr").textContent=""}
 $("#tabIn").onclick=()=>authMode("in");$("#tabUp").onclick=()=>authMode("up");
 $("#authForm").onsubmit=async e=>{e.preventDefault();const b=$("#authBtn");b.disabled=true;$("#authErr").textContent="";
   try{const body={email:$("#aEmail").value,password:$("#aPass").value};if(MODE==="up")body.name=$("#aName").value;
     const j=await api(MODE==="up"?"/api/auth/signup":"/api/auth/login",{body});
-    TOKEN=j.token;USER=j.user;store.set("ca_token",TOKEN);store.del("ca_guest");enterApp();toast(MODE==="up"?"Account created":"Signed in")}
+    TOKEN=j.token;USER=j.user;store.set("ca_token",TOKEN);$("#aPass").value="";enterApp();route();toast(MODE==="up"?"Account created":"Signed in")}
   catch(err){$("#authErr").textContent=err.message}finally{b.disabled=false}};
-$("#guestBtn").onclick=()=>{store.set("ca_guest","1");TOKEN=null;USER=null;enterApp()};
-$("#outBtn").onclick=()=>{store.del("ca_token");store.del("ca_guest");TOKEN=null;USER=null;DATA=null;location.hash="";showAuth()};
-function showAuth(){$("#shell").classList.add("hide");$("#auth").classList.remove("hide");authMode("in")}
+$("#outBtn").onclick=()=>{if(!USER){showAuth();return}store.del("ca_token");TOKEN=null;USER=null;enterApp();toast("Signed out")};
+function showAuth(){authMode("in");const d=$("#authDlg");if(d.showModal)d.showModal();else d.setAttribute("open","")}
 function enterApp(){
-  $("#auth").classList.add("hide");$("#shell").classList.remove("hide");
+  const d=$("#authDlg");if(d.open)d.close();$("#shell").classList.remove("hide");
   const n=USER?USER.name:"Guest";$("#whoName").textContent=n;$("#whoEmail").textContent=USER?USER.email:"Not signed in";
   $("#avatar").textContent=n.trim().charAt(0).toUpperCase()||"G";$("#outLbl").textContent=USER?"Sign out":"Sign in";
   $("#themeLbl").textContent=curTheme()==="dark"?"Light":"Dark";
@@ -823,8 +799,7 @@ async function loadHealth(){try{const h=await api("/api/health");$("#healthLine"
 /* ---------------- boot ---------------- */
 (async()=>{
   if(TOKEN){try{USER=(await api("/api/auth/me")).user;enterApp();return}catch(e){store.del("ca_token");TOKEN=null}}
-  if(store.get("ca_guest")){enterApp();return}
-  showAuth();
+  enterApp();
 })();
 </script>
 </body>
