@@ -1,7 +1,10 @@
 # CloudArch Advisor
 
 **Generative AI-Based Cloud Architecture Recommendation Framework for Startup Enterprises using Retrieval-Augmented Generation**
-BCSE355L Cloud Architecture Design · Project
+BCSE355L Cloud Architecture Design · B2 slot · Project
+
+**Team:** Sai Chandra Reddy (24BYB0011) · Manoj Kumar S (24BDE0052) · S M Nithin (24BDE0033)  
+**Faculty:** Muthamil Selvan
 
 **Live demo:** https://cloudarch-advisor.vercel.app
 
