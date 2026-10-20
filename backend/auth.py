@@ -91,6 +91,10 @@ def login(email, password):
     email = (email or "").strip().lower()
     rec = store.get(f"user:{email}")
     if not rec or not hmac.compare_digest(_b64(_hash(password or "", _unb64(rec["salt"]))), rec["hash"]):
-        raise AuthError("Email or password is incorrect.", 401)
+        msg = "Email or password is incorrect."
+        if not store.PERSISTENT:
+            msg += (" Accounts on this demo are kept in memory and reset when the server restarts."
+                    " If you signed up earlier, create your account again.")
+        raise AuthError(msg, 401)
     user = {"name": rec["name"], "email": rec["email"]}
     return {"token": make_token(user), "user": user}

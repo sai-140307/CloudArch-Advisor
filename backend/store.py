@@ -9,8 +9,19 @@ import os
 import time
 import urllib.request
 
-URL = (os.environ.get("KV_REST_API_URL") or os.environ.get("UPSTASH_REDIS_REST_URL") or "").rstrip("/")
-TOKEN = os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN") or ""
+def _env(*suffixes):
+    """Vercel's Upstash integration may add a custom prefix (e.g. STORAGE_KV_REST_API_URL)."""
+    for s in suffixes:
+        if os.environ.get(s):
+            return os.environ[s]
+    for k, v in os.environ.items():
+        if v and any(k.endswith(s) for s in suffixes) and "READ_ONLY" not in k:
+            return v
+    return ""
+
+
+URL = _env("KV_REST_API_URL", "UPSTASH_REDIS_REST_URL").rstrip("/")
+TOKEN = _env("KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_TOKEN")
 PERSISTENT = bool(URL and TOKEN)
 
 _mem, _exp = {}, {}
