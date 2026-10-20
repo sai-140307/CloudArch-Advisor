@@ -82,3 +82,20 @@ def recent(key, n=20):
     if PERSISTENT:
         return [json.loads(x) for x in (_redis("LRANGE", key, 0, n - 1) or [])]
     return json.loads(_mem.get(key, "[]"))[:n]
+
+
+def incr_window(key, window_s):
+    """Fixed-window counter: increment `key` and return (count, seconds_left_in_window)."""
+    if PERSISTENT:
+        n = int(_redis("INCR", key))
+        if n == 1:
+            _redis("EXPIRE", key, int(window_s))
+        ttl = int(_redis("TTL", key) or window_s)
+        return n, max(ttl, 1)
+    now = time.time()
+    if not _alive(key):
+        _mem[key] = "0"
+        _exp[key] = now + window_s
+    n = int(_mem[key]) + 1
+    _mem[key] = str(n)
+    return n, max(int(_exp[key] - now), 1)

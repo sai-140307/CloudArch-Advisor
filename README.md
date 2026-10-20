@@ -23,6 +23,7 @@ Also in the app:
 - **Downloadable report** (PDF with page numbers, or Word) with the summary, comparison, diagrams, costs and the CloudFormation appendix
 - A cost-by-layer chart, a **knowledge-base browser**, and light and dark themes
 - If the AI model is slow or unavailable, a rule-based fallback still answers and the page says why
+- **Rate limiting** per visitor: 5 designs a minute and 60 a day, 10 questions a minute, 10 sign-in attempts a minute
 
 The LLM only **chooses and explains** components. Prices, scores, compliance rules, diagrams and IaC are produced by
 deterministic, testable code.
@@ -131,5 +132,5 @@ LLM-generated options. Run it yourself: `python3 scripts/evaluate.py <app URL>`.
 - Prices are static, tier-based estimates for us-east-1; confirm them in the AWS Pricing Calculator
 - Pillar scores use heuristic component weights, not a full Well-Architected review
 - The knowledge base is 14 curated documents and covers AWS only
-- Sign-in is optional and the public endpoint has no rate limiting
+- Sign-in is optional; abuse protection is limited to per-visitor rate limits (no WAF)
 - On the Gemini free tier, responses can be slow or rate-limited at busy times

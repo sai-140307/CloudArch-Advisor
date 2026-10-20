@@ -11,6 +11,7 @@ Routes
   POST /api/ask               follow-up question about a design (RAG + LLM)
   GET  /api/kb                knowledge-base documents
   GET  /api/health            configuration / status
+  Rate limits per visitor: 5 designs/min and 60/day, 10 questions/min, 10 sign-in attempts/min (HTTP 429)
   (direct invoke) {"action": "reindex"} | {"action": "selftest"}
 """
 import base64
@@ -32,6 +33,44 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MOCK = bool(os.environ.get("MOCK_LLM"))
 DESIGN_TTL = 30 * 24 * 3600
 _ddb = None
+
+# Rate limits per visitor (signed-in user, else IP address): (requests, window in seconds).
+# They protect the free AI quota and keep one visitor from slowing the service for others.
+LIMITS = {
+    "recommend": [(int(os.environ.get("RL_DESIGNS_PER_MIN", "5")), 60),
+                  (int(os.environ.get("RL_DESIGNS_PER_DAY", "60")), 86400)],
+    "ask": [(int(os.environ.get("RL_ASKS_PER_MIN", "10")), 60)],
+    "auth": [(int(os.environ.get("RL_AUTH_PER_MIN", "10")), 60)],
+}
+
+
+class RateLimited(Exception):
+    def __init__(self, msg, retry):
+        super().__init__(msg)
+        self.retry = retry
+
+
+def client_id(event, user):
+    if user:
+        return "u:" + user["email"]
+    h = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+    ip = (h.get("x-forwarded-for", "").split(",")[0].strip() or h.get("x-real-ip", "")
+          or event.get("requestContext", {}).get("http", {}).get("sourceIp", "") or "unknown")
+    return "ip:" + ip
+
+
+def check_rate(kind, who):
+    for limit, window in LIMITS[kind]:
+        try:
+            n, left = store.incr_window(f"rl:{kind}:{window}:{who}:{int(time.time() // window)}", window)
+        except Exception as e:          # never block users because the counter store failed
+            print("Rate limit check failed:", repr(e))
+            return
+        if n > limit:
+            what = {"recommend": "designs", "ask": "questions", "auth": "sign-in attempts"}[kind]
+            per = "minute" if window == 60 else "day"
+            wait = f"{left} seconds" if left < 120 else f"{round(left / 3600, 1)} hours"
+            raise RateLimited(f"You have reached the limit of {limit} {what} per {per}. Try again in {wait}.", left)
 
 
 def table():
@@ -225,6 +264,8 @@ def handler(event, context):
                               "retriever": rag.RETRIEVER, "kb_bucket": rag.KB_BUCKET or None,
                               "gemini_key_set": bool(llm.GEMINI_KEY),
                               "persistent_store": store.PERSISTENT})
+        if method == "POST" and path in ("/api/auth/signup", "/api/auth/login"):
+            check_rate("auth", client_id(event, None))
         if method == "POST" and path == "/api/auth/signup":
             b = body()
             return resp(200, auth.signup(b.get("name"), b.get("email"), b.get("password")))
@@ -234,6 +275,7 @@ def handler(event, context):
         if method == "GET" and path == "/api/auth/me":
             return resp(200, {"user": user}) if user else resp(401, {"error": "Not signed in."})
         if method == "POST" and path == "/api/recommend":
+            check_rate("recommend", client_id(event, user))
             return resp(200, recommend(body(), user))
         if method == "GET" and path == "/api/history":
             return resp(200, store.recent(owner_key(user), 20))
@@ -241,12 +283,17 @@ def handler(event, context):
             d = store.get(f"design:{path.rsplit('/', 1)[-1][:24]}")
             return resp(200, d) if d else resp(404, {"error": "This design has expired or does not exist."})
         if method == "POST" and path == "/api/ask":
+            check_rate("ask", client_id(event, user))
             return resp(200, ask(body()))
         if method == "GET" and path == "/api/kb":
             return resp(200, kb_docs())
         return resp(404, {"error": "not found"})
     except auth.AuthError as e:
         return resp(e.code, {"error": str(e)})
+    except RateLimited as e:
+        r = resp(429, {"error": str(e), "retry_after": e.retry})
+        r["headers"]["Retry-After"] = str(e.retry)
+        return r
     except Exception as e:
         print("ERROR", repr(e))
         return resp(500, {"error": str(e)[:300]})

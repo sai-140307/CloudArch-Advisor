@@ -612,7 +612,7 @@ $("#runBtn").onclick=async()=>{
   try{DATA=await api("/api/recommend",{body:F});clearInterval(tick);
     for(let i=stage;i<=STAGES.length;i++){lis.forEach((li,j)=>{li.classList.toggle("done",j<i);li.classList.toggle("on",j===i)});await new Promise(r=>setTimeout(r,matchMedia("(prefers-reduced-motion: reduce)").matches?0:140))}
     CUR=Math.max(0,DATA.options.findIndex(o=>o.name===DATA.recommended));location.hash="#/design/"+DATA.id}
-  catch(e){clearInterval(tick);$("#runErr").textContent="The design could not be generated: "+e.message+". Try again."}
+  catch(e){clearInterval(tick);$("#runErr").textContent=e.status===429?e.message:"The design could not be generated: "+e.message+". Try again."}
   finally{$("#running").classList.add("hide");$("#wizard").classList.remove("hide");lis.forEach(li=>li.className="")}
 };
 

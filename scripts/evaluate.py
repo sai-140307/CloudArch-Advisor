@@ -53,7 +53,7 @@ def main(base):
                                  in_budget=int(o["within_budget"]), cost=o["monthly_cost"],
                                  overall=o["scores"]["overall"], latency=round(lat, 1)))
             print(f"{sc['name']:15} rag={rag!s:5} done ({lat:.1f}s)")
-            time.sleep(8)   # stay under the Gemini free-tier requests-per-minute limit
+            time.sleep(13)  # stay under the app's 5 designs/minute limit and Gemini's free-tier limit
     with open("eval_results.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
     def avg(rs, k):
