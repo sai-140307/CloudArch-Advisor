@@ -15,9 +15,14 @@ architectures (**Low-cost**, **Balanced**, **High-availability**), each with:
 - a downloadable **CloudFormation starter template** for the chosen option
 - guardrails: invented services are rejected, compliance controls (HIPAA, PCI DSS, GDPR, SOC 2) are enforced
 
-Also in the app: **accounts** (sign up, sign in, guest mode) with saved designs, **Ask the architect** follow-up
-questions answered with RAG, a **12-month cost growth simulator**, a cost-by-layer chart, a **knowledge-base browser**,
-light and dark themes, and a **downloadable report** (PDF or Word) with diagrams, comparisons and the CloudFormation appendix.
+Also in the app:
+
+- **Optional accounts** (sign up, sign in, or use it as a guest) with your designs saved for 30 days
+- **Ask the architect**: follow-up questions about a design, answered with RAG and the LLM
+- **Growth simulator**: projected monthly cost over 6–36 months and the month the budget is exceeded
+- **Downloadable report** (PDF with page numbers, or Word) with the summary, comparison, diagrams, costs and the CloudFormation appendix
+- A cost-by-layer chart, a **knowledge-base browser**, and light and dark themes
+- If the AI model is slow or unavailable, a rule-based fallback still answers and the page says why
 
 The LLM only **chooses and explains** components. Prices, scores, compliance rules, diagrams and IaC are produced by
 deterministic, testable code.
@@ -39,7 +44,7 @@ flowchart LR
   end
   F --> F2
   S2 -.-> KB[(Knowledge base<br/>14 docs, 44 chunks)]
-  S7 -.-> H[(Request history)]
+  S7 -.-> H[(Accounts and saved designs<br/>Upstash Redis / DynamoDB / S3)]
 ```
 
 ## Deploy it — three profiles, one code base
@@ -50,7 +55,7 @@ flowchart LR
 | Compute | Vercel serverless (Python) | AWS Lambda | AWS Lambda |
 | LLM | Google Gemini | Amazon Bedrock (Nova Lite) | Google Gemini |
 | Retrieval | BM25 over `kb/` | Titan Text Embeddings V2 | BM25 |
-| History | in memory | DynamoDB | S3 |
+| Accounts and saved designs | Upstash Redis | DynamoDB | S3 |
 | Infra as code | `vercel.json` | `template.yaml` (CloudFormation) | `template.yaml` + `deploy.sh` auto-detects the lab |
 
 ### A. Vercel (from this GitHub repo)
@@ -58,12 +63,14 @@ flowchart LR
 2. https://vercel.com → **Add New… → Project** → import this repository
 3. **Environment Variables:** `GEMINI_API_KEY` = your key (optional: `AUTH_SECRET` = any long random string)
 4. **Deploy** → open the `*.vercel.app` link
-5. Optional, to keep accounts and designs across restarts: Vercel project → **Storage** → **Upstash for Redis**
-   → create and connect. It adds `KV_REST_API_URL` / `KV_REST_API_TOKEN`; redeploy. Without it, data is kept in memory.
+5. Recommended, so accounts and designs survive restarts: Vercel project → **Storage** → **Upstash for Redis** →
+   create (free plan, same region as your functions, usually Washington, D.C. `iad1`) → connect to the project → redeploy.
+   The app finds the `KV_REST_API_URL` / `KV_REST_API_TOKEN` variables it adds, with or without a prefix.
+   Check `https://<your-app>.vercel.app/api/health` shows `"persistent_store": true`. Without it, data is kept in memory.
 
-### B. AWS (CloudShell)
+### B. AWS (in AWS CloudShell, region us-east-1)
 ```bash
-unzip cloud-arch-advisor.zip && cd cloud-arch-advisor
+git clone https://github.com/sai-140307/cloudarch-advisor && cd cloudarch-advisor
 bash deploy.sh                              # normal AWS account: Bedrock + API Gateway + DynamoDB
 bash deploy.sh GeminiApiKey=YOUR_KEY        # AWS Academy sandbox (detected automatically)
 bash teardown.sh                            # delete everything
@@ -108,6 +115,21 @@ Python 3.10+ only, no packages needed.
 21 of 48 options came from the rule-based fallback because of Gemini free-tier limits; coverage is computed over the 27
 LLM-generated options. Run it yourself: `python3 scripts/evaluate.py <app URL>`.
 
+## Tech stack
+
+| Part | Technology |
+|---|---|
+| Backend | Python 3.12, standard library only (no pip packages) |
+| AI | Google Gemini API (Flash, with Flash-Lite fallback) or Amazon Bedrock (Nova Lite, Titan Text Embeddings V2) |
+| Retrieval | Okapi BM25 or Titan embeddings with cosine similarity, over 14 Markdown documents |
+| Storage | Upstash Redis (Vercel), DynamoDB or S3 (AWS) |
+| Hosting | Vercel serverless functions, or AWS Lambda behind API Gateway / Function URL |
+| Infrastructure as code | AWS CloudFormation (`template.yaml`), `vercel.json` |
+| Frontend | Single HTML page with vanilla JavaScript, Mermaid for diagrams, html2canvas + jsPDF for the PDF report |
+
 ## Limitations
-Static, tier-based price estimates (us-east-1, verify in the AWS Pricing Calculator) · heuristic pillar weights ·
-14 curated documents · AWS only · public endpoint without authentication.
+- Prices are static, tier-based estimates for us-east-1; confirm them in the AWS Pricing Calculator
+- Pillar scores use heuristic component weights, not a full Well-Architected review
+- The knowledge base is 14 curated documents and covers AWS only
+- Sign-in is optional and the public endpoint has no rate limiting
+- On the Gemini free tier, responses can be slow or rate-limited at busy times
