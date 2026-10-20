@@ -1,0 +1,73 @@
+"""Tiny key-value store used for user accounts and saved designs.
+
+If Upstash Redis (Vercel Marketplace -> Storage -> Upstash Redis) is connected, its REST
+API is used and data survives restarts. Otherwise an in-memory store is used, which is
+fine for a demo but is lost when the serverless instance is recycled.
+"""
+import json
+import os
+import time
+import urllib.request
+
+URL = (os.environ.get("KV_REST_API_URL") or os.environ.get("UPSTASH_REDIS_REST_URL") or "").rstrip("/")
+TOKEN = os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN") or ""
+PERSISTENT = bool(URL and TOKEN)
+
+_mem, _exp = {}, {}
+
+
+def _redis(*args):
+    req = urllib.request.Request(URL, json.dumps([str(a) for a in args]).encode(),
+                                 {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=8) as f:
+        out = json.load(f)
+    if "error" in out:
+        raise RuntimeError(out["error"])
+    return out.get("result")
+
+
+def _alive(k):
+    if k in _exp and _exp[k] < time.time():
+        _mem.pop(k, None)
+        _exp.pop(k, None)
+    return k in _mem
+
+
+def get(key):
+    if PERSISTENT:
+        v = _redis("GET", key)
+        return json.loads(v) if v else None
+    return json.loads(_mem[key]) if _alive(key) else None
+
+
+def set(key, value, ttl=None):
+    v = json.dumps(value, default=str)
+    if PERSISTENT:
+        return _redis("SET", key, v, "EX", int(ttl)) if ttl else _redis("SET", key, v)
+    _mem[key] = v
+    if ttl:
+        _exp[key] = time.time() + ttl
+
+
+def exists(key):
+    if PERSISTENT:
+        return bool(_redis("EXISTS", key))
+    return _alive(key)
+
+
+def push_recent(key, value, keep=20):
+    """Prepend to a list and keep only the newest `keep` entries."""
+    v = json.dumps(value, default=str)
+    if PERSISTENT:
+        _redis("LPUSH", key, v)
+        _redis("LTRIM", key, 0, keep - 1)
+        return
+    lst = json.loads(_mem.get(key, "[]"))
+    lst.insert(0, value)
+    _mem[key] = json.dumps(lst[:keep], default=str)
+
+
+def recent(key, n=20):
+    if PERSISTENT:
+        return [json.loads(x) for x in (_redis("LRANGE", key, 0, n - 1) or [])]
+    return json.loads(_mem.get(key, "[]"))[:n]

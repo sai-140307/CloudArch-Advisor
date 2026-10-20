@@ -30,6 +30,7 @@ class handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length).decode("utf-8") if length else None
         event = {"rawPath": path, "body": body, "isBase64Encoded": False,
+                 "headers": {k.lower(): v for k, v in self.headers.items()},
                  "requestContext": {"http": {"method": method}}}
         result = app.handler(event, None)
         if not isinstance(result, dict) or "statusCode" not in result:   # non-HTTP action

@@ -15,6 +15,10 @@ architectures (**Low-cost**, **Balanced**, **High-availability**), each with:
 - a downloadable **CloudFormation starter template** for the chosen option
 - guardrails: invented services are rejected, compliance controls (HIPAA, PCI DSS, GDPR, SOC 2) are enforced
 
+Also in the app: **accounts** (sign up, sign in, guest mode) with saved designs, **Ask the architect** follow-up
+questions answered with RAG, a **12-month cost growth simulator**, a cost-by-layer chart, a **knowledge-base browser**,
+light and dark themes, and a **downloadable report** (PDF or Word) with diagrams, comparisons and the CloudFormation appendix.
+
 The LLM only **chooses and explains** components. Prices, scores, compliance rules, diagrams and IaC are produced by
 deterministic, testable code.
 
@@ -52,8 +56,10 @@ flowchart LR
 ### A. Vercel (from this GitHub repo)
 1. Get a free Gemini API key at https://aistudio.google.com/apikey
 2. https://vercel.com → **Add New… → Project** → import this repository
-3. **Environment Variables:** `GEMINI_API_KEY` = your key
+3. **Environment Variables:** `GEMINI_API_KEY` = your key (optional: `AUTH_SECRET` = any long random string)
 4. **Deploy** → open the `*.vercel.app` link
+5. Optional, to keep accounts and designs across restarts: Vercel project → **Storage** → **Upstash for Redis**
+   → create and connect. It adds `KV_REST_API_URL` / `KV_REST_API_TOKEN`; redeploy. Without it, data is kept in memory.
 
 ### B. AWS (CloudShell)
 ```bash
@@ -74,13 +80,15 @@ Python 3.10+ only, no packages needed.
 
 | Path | What it is |
 |---|---|
-| `backend/app.py` | Request handler and routes (`/`, `/api/recommend`, `/api/history`, `/api/health`) |
+| `backend/app.py` | Request handler and routes (`/api/auth/*`, `/api/recommend`, `/api/history`, `/api/design/<id>`, `/api/ask`, `/api/kb`, `/api/health`) |
+| `backend/auth.py` | Accounts: PBKDF2-SHA256 password hashing, signed session tokens |
+| `backend/store.py` | Key-value store: Upstash Redis REST API, or in-memory fallback |
 | `backend/rag.py` | Chunking, BM25 / Titan retrieval, index |
 | `backend/llm.py` | Prompt, Gemini and Bedrock clients, model fallback chain |
 | `backend/catalog.py` | 33 AWS components: cost per tier, pillar contributions, blueprints, compliance rules |
 | `backend/engine.py` | Validation, guardrails, cost, pillar scoring, Mermaid diagram |
 | `backend/iac.py` | CloudFormation starter-template generator |
-| `backend/index.html` | Single-page web UI |
+| `backend/index.html` | Single-page web app: sign-in, wizard, results dashboard, report export |
 | `kb/` | Knowledge base: 14 curated documents (6 pillars, patterns, DR, compliance, sizing, IaC) |
 | `api/index.py`, `vercel.json` | Vercel deployment |
 | `template.yaml`, `deploy.sh`, `teardown.sh` | AWS deployment (CloudFormation) |

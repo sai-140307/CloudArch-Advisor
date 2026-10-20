@@ -4,196 +4,828 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CloudArch Advisor</title>
+<meta name="description" content="Describe your startup and get three AWS architectures with costs, Well-Architected scores, diagrams and CloudFormation.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#16202c;--mut:#5d6b7a;--line:#dfe4ea;--acc:#0b6bcb;--acc2:#e8f1fb;--ok:#1a7f4b;--bad:#b42318;--warn:#b54708}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1720;--card:#17212c;--ink:#e8edf2;--mut:#93a1b0;--line:#2a3745;--acc:#5aa9f5;--acc2:#18304a;--ok:#4cc38a;--bad:#f97066;--warn:#fdb022}}
+:root{
+  --paper:#EEF2F6;--panel:#FFFFFF;--panel-2:#F6F8FB;--ink:#0B1F33;--ink-2:#46596D;--ink-3:#6B7C8F;
+  --line:#D5DEE8;--line-2:#E4EAF1;--cobalt:#2747D6;--cobalt-2:#1B33A6;--cobalt-bg:#E6EBFC;
+  --amber:#B86E0A;--amber-line:#E8A33D;--amber-bg:#FDF3E1;--ok:#0F7B5F;--ok-bg:#E1F4EE;--bad:#B4321F;--bad-bg:#FBE8E4;
+  --sheet:#F9FBFD;--sheet-ink:#0B1F33;--grid:rgba(39,71,214,.07);--grid-major:rgba(39,71,214,.13);
+  --c-low:#0E8F80;--c-bal:#2747D6;--c-ha:#7A4FD6;
+  --shadow:0 1px 2px rgba(11,31,51,.06),0 8px 24px -12px rgba(11,31,51,.18);
+  --r-lg:14px;--r-md:10px;--r-sm:7px;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --paper:#08131F;--panel:#0F2133;--panel-2:#0C1B2A;--ink:#E6EEF6;--ink-2:#A9BACB;--ink-3:#8296AB;
+  --line:#22384F;--line-2:#1A2E43;--cobalt:#7F98FF;--cobalt-2:#B3C2FF;--cobalt-bg:#1A2C5C;
+  --amber:#F0B65A;--amber-line:#C98A2B;--amber-bg:#33260F;--ok:#55D0A8;--ok-bg:#0F3328;--bad:#FF8A76;--bad-bg:#3A1812;
+  --sheet:#0E2846;--sheet-ink:#D9E6FF;--grid:rgba(160,190,255,.08);--grid-major:rgba(160,190,255,.16);
+  --c-low:#3CCBB8;--c-bal:#7F98FF;--c-ha:#B795FF;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 28px -14px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#08131F;--panel:#0F2133;--panel-2:#0C1B2A;--ink:#E6EEF6;--ink-2:#A9BACB;--ink-3:#8296AB;
+  --line:#22384F;--line-2:#1A2E43;--cobalt:#7F98FF;--cobalt-2:#B3C2FF;--cobalt-bg:#1A2C5C;
+  --amber:#F0B65A;--amber-line:#C98A2B;--amber-bg:#33260F;--ok:#55D0A8;--ok-bg:#0F3328;--bad:#FF8A76;--bad-bg:#3A1812;
+  --sheet:#0E2846;--sheet-ink:#D9E6FF;--grid:rgba(160,190,255,.08);--grid-major:rgba(160,190,255,.16);
+  --c-low:#3CCBB8;--c-bal:#7F98FF;--c-ha:#B795FF;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 28px -14px rgba(0,0,0,.6);color-scheme:dark}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{padding:20px 16px;border-bottom:1px solid var(--line);background:var(--card)}
-.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
-h1{margin:0;font-size:22px} h1 span{color:var(--acc)}
-header p{margin:4px 0 0;color:var(--mut)}
-main{padding:20px 0 60px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:3px;font-weight:600}
-input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
-textarea{min-height:64px;resize:vertical}
-.checks{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px}
-.checks label{display:flex;gap:6px;align-items:center;margin:0;font-weight:500;color:var(--ink);font-size:14px}
-.checks input{width:auto}
-button{cursor:pointer;border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600}
-.primary{background:var(--acc);color:#fff}.primary:disabled{opacity:.6;cursor:wait}
-.ghost{background:var(--acc2);color:var(--acc);padding:6px 12px;font-size:13px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.tab{background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:8px 14px}
-.tab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-.kpis{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
-.kpi{flex:1;min-width:130px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.kpi b{display:block;font-size:22px}.kpi small{color:var(--mut)}
-.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
-.bar{display:grid;grid-template-columns:170px 1fr 34px;gap:10px;align-items:center;margin:6px 0;font-size:13.5px}
-.track{height:10px;background:var(--bg);border-radius:6px;border:1px solid var(--line);overflow:hidden}
-.fill{height:100%;background:var(--acc)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.chip{background:var(--acc2);color:var(--acc);border-radius:999px;padding:3px 10px;font-size:12.5px}
-.chip.g{background:#fdecea;color:var(--bad)}
-table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
-th{color:var(--mut);font-weight:600}td.n,th.n{text-align:right}
-pre{background:var(--bg);border:1px solid var(--line);padding:10px;border-radius:8px;overflow:auto;font-size:12.5px}
-.mer{overflow:auto;background:#fff;border-radius:8px;padding:8px;border:1px solid var(--line)}
-.note{font-size:13px;color:var(--warn);margin:4px 0}
-.src{font-size:13px;border-left:3px solid var(--acc);padding:4px 10px;margin:8px 0;background:var(--bg)}
-.hide{display:none}
-h3{margin:18px 0 6px;font-size:15px}
-.cmp td.best{font-weight:700;color:var(--ok)}
-.cmpwrap{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
-#radar svg{max-width:100%;height:auto}
-.lg{display:flex;gap:14px;justify-content:center;font-size:12.5px;margin-top:4px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
-@media print{header,.noprint,#hist,.row button{display:none!important}body{background:#fff;color:#000}.card{border:1px solid #ccc;break-inside:avoid}#out{display:block!important}}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;font-size:15.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-stretch:118%;letter-spacing:-.01em;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4vw,46px);font-weight:750}
+h2{font-size:24px;font-weight:700}
+h3{font-size:17px;font-weight:680;font-stretch:108%}
+p{margin:0}
+a{color:var(--cobalt)}
+code,pre,.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--cobalt);outline-offset:2px;border-radius:4px}
+.hide{display:none!important}
+.muted{color:var(--ink-2)}
+.small{font-size:13.5px}
+.btn{text-decoration:none;display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;border-radius:var(--r-md);padding:10px 16px;font-weight:620;cursor:pointer;background:var(--panel);border-color:var(--line);transition:background .15s,border-color .15s}
+.btn:hover{border-color:var(--ink-3)}
+.btn.primary{background:var(--cobalt);border-color:var(--cobalt);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#08131F}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#08131F}}
+.btn.primary:hover{background:var(--cobalt-2);border-color:var(--cobalt-2)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--panel-2);color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn svg{width:17px;height:17px;flex:none}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label,.lbl{font-size:13.5px;font-weight:620;color:var(--ink-2)}
+.input,select.input,textarea.input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:11px 13px;outline:none;transition:border-color .15s}
+.input:focus{border-color:var(--cobalt);box-shadow:0 0 0 3px var(--cobalt-bg)}
+textarea.input{min-height:96px;resize:vertical}
+.err{color:var(--bad);font-size:14px;min-height:20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg)}
+
+/* ---------------- auth screen */
+#auth{min-height:100vh;display:grid;grid-template-columns:1.15fr .85fr}
+.auth-art{position:relative;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;gap:32px;background:var(--sheet);
+  background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:120px 120px,120px 120px,24px 24px,24px 24px;border-right:1px solid var(--line);color:var(--sheet-ink)}
+.brand{display:flex;align-items:center;gap:12px;font-weight:760;font-stretch:118%;font-size:20px}
+.brand svg{width:34px;height:34px}
+.auth-art h1{max-width:15ch;color:var(--sheet-ink)}
+.auth-art .lead{max-width:52ch;font-size:17px;color:var(--ink-2);margin-top:16px}
+.auth-art .art{max-width:640px;width:100%}
+.auth-art .art svg{width:100%;height:auto;display:block}
+.auth-form{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.auth-card{width:100%;max-width:400px;display:flex;flex-direction:column;gap:18px}
+.tabs{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-md);padding:4px;gap:4px}
+.tabs button{flex:1;border:0;background:transparent;padding:9px;border-radius:7px;font-weight:620;color:var(--ink-2);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.or{display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:13.5px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+@media (max-width:900px){#auth{grid-template-columns:1fr}.auth-art{padding:32px 20px;border-right:0;border-bottom:1px solid var(--line)}.auth-art .art{display:none}}
+
+/* ---------------- app shell */
+#shell{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px;padding:22px 14px;border-right:1px solid var(--line);background:var(--panel)}
+.side .brand{padding:0 10px 18px;font-size:16.5px;white-space:nowrap}
+.side-row .btn{white-space:nowrap;padding:9px 10px}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--r-md);color:var(--ink-2);text-decoration:none;font-weight:600}
+.nav a svg{width:18px;height:18px}
+.nav a:hover{background:var(--panel-2);color:var(--ink)}
+.nav a[aria-current="page"]{background:var(--cobalt-bg);color:var(--cobalt-2)}
+:root[data-theme="dark"] .nav a[aria-current="page"]{color:var(--cobalt-2)}
+.side .foot{margin-top:auto;display:flex;flex-direction:column;gap:10px;padding:12px 6px 0;border-top:1px solid var(--line)}
+.who{display:flex;align-items:center;gap:10px;padding:6px}
+.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--cobalt-bg);color:var(--cobalt-2);font-weight:750}
+.who .n{font-weight:650;font-size:14.5px;line-height:1.2}.who .e{font-size:12.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;max-width:150px;white-space:nowrap}
+.side-row{display:flex;gap:6px}
+main{min-width:0;padding:32px clamp(16px,3.4vw,48px) 80px}
+.view{max-width:1180px;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:26px}
+.page-head p{margin-top:8px;max-width:64ch}
+.topbar{display:none}
+@media (max-width:980px){
+  #shell{grid-template-columns:1fr}
+  .side{position:fixed;inset:0 auto 0 0;width:270px;z-index:40;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow)}
+  .side.open{transform:none}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:30}
+  main{padding-top:20px}
+}
+
+/* ---------------- wizard */
+.wizard{display:grid;grid-template-columns:230px 1fr;gap:28px;align-items:start}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;position:sticky;top:24px}
+.steps li button{width:100%;text-align:left;display:flex;gap:12px;align-items:flex-start;border:0;background:transparent;padding:12px;border-radius:var(--r-md);cursor:pointer;color:var(--ink-2)}
+.steps li button:hover{background:var(--panel)}
+.steps .num{flex:none;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:13.5px;background:var(--panel)}
+.steps .t{font-weight:650;color:var(--ink);line-height:1.25}.steps .d{font-size:13px}
+.steps button[aria-current="step"] .num{background:var(--cobalt);border-color:var(--cobalt);color:#fff}
+.steps button.done .num{border-color:var(--cobalt);color:var(--cobalt)}
+.step-panel{padding:28px;display:flex;flex-direction:column;gap:22px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.templates{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tpl{text-align:left;border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r-md);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.tpl:hover{border-color:var(--cobalt)}
+.tpl b{font-weight:650}.tpl span{font-size:13px;color:var(--ink-2)}
+.tpl[aria-pressed="true"]{border-color:var(--cobalt);background:var(--cobalt-bg)}
+.range-row{display:flex;align-items:center;gap:14px}
+.range-row input[type=range]{flex:1;accent-color:var(--cobalt)}
+.range-row .input{width:130px}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 14px;cursor:pointer;font-weight:600;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.toggles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tog{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;cursor:pointer;background:var(--panel)}
+.tog input{margin-top:3px;accent-color:var(--cobalt);width:17px;height:17px}
+.tog b{display:block;font-weight:640}.tog span{font-size:13px;color:var(--ink-2)}
+.step-nav{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line-2);padding-top:18px}
+.review{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.review div{background:var(--panel-2);padding:12px 14px}.review dt{font-size:12.5px;color:var(--ink-3)}.review dd{margin:2px 0 0;font-weight:650}
+@media (max-width:860px){.wizard{grid-template-columns:1fr}.steps{position:static;flex-direction:row;overflow-x:auto}.steps .d,.steps br{display:none}.steps .t{white-space:nowrap}.steps li button{padding:8px 10px;align-items:center}.grid2,.toggles{grid-template-columns:1fr}.templates,.grid3{grid-template-columns:1fr 1fr}.review{grid-template-columns:1fr 1fr}}
+
+/* ---------------- running */
+.running{padding:36px;display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:center}
+.pipe{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:s}
+.pipe li{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:var(--r-md);color:var(--ink-3);transition:color .3s,background .3s}
+.pipe li .dot{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:12.5px;font-weight:700;flex:none;background:var(--panel)}
+.pipe li.on{color:var(--ink);background:var(--cobalt-bg)}
+.pipe li.on .dot{border-color:var(--cobalt);color:var(--cobalt);animation:pulse 1.1s ease-in-out infinite}
+.pipe li.done{color:var(--ink)}
+.pipe li.done .dot{background:var(--cobalt);border-color:var(--cobalt);color:#fff}
+@keyframes pulse{50%{box-shadow:0 0 0 6px var(--cobalt-bg)}}
+.running .big{font-size:56px;font-weight:760;font-stretch:118%;font-variant-numeric:tabular-nums}
+@media (max-width:860px){.running{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------------- results */
+.r-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px}
+.r-head .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 11px;font-size:13.5px;font-weight:560;color:var(--ink-2)}
+.chip.warn{background:var(--amber-bg);border-color:var(--amber-line);color:var(--amber)}
+.chip.ok{background:var(--ok-bg);border-color:transparent;color:var(--ok)}
+.chip.bad{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.opt{position:relative;text-align:left;border:1.5px solid var(--line);background:var(--panel);border-radius:var(--r-lg);padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:10px}
+.opt:hover{border-color:var(--ink-3)}
+.opt[aria-pressed="true"]{border-color:var(--oc);box-shadow:0 0 0 3px color-mix(in srgb,var(--oc) 18%,transparent)}
+.opt .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.opt .nm{font-weight:700;font-stretch:112%;font-size:17px;display:flex;align-items:center;gap:8px}
+.opt .nm i{width:10px;height:10px;border-radius:3px;background:var(--oc);display:inline-block}
+.opt .nums{display:flex;gap:22px;align-items:baseline}
+.opt .cost{font-size:28px;font-weight:760;font-stretch:115%;font-variant-numeric:tabular-nums}
+.opt .cost small{font-size:13px;font-weight:500;color:var(--ink-3)}
+.opt .sc{font-size:14px;color:var(--ink-2)}.opt .sc b{color:var(--ink);font-size:18px}
+.rec{font-size:12.5px;font-weight:650;color:var(--cobalt-2);background:var(--cobalt-bg);border-radius:999px;padding:3px 9px}
+/* the drawing sheet */
+.sheet{position:relative;background:var(--sheet);color:var(--sheet-ink);border:1.5px solid var(--sheet-ink);border-radius:4px;padding:18px;margin-bottom:22px;
+  background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:100px 100px,100px 100px,20px 20px,20px 20px}
+.sheet::before{content:"";position:absolute;inset:7px;border:1px solid var(--sheet-ink);opacity:.35;pointer-events:none;border-radius:2px}
+.sheet .dwg{min-height:340px;overflow:auto;padding:14px 8px 8px;display:flex;justify-content:center}
+.sheet .dwg svg{max-width:100%;height:auto}
+.tblock{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;border:1.5px solid var(--sheet-ink);margin-top:10px;font-size:13px;background:var(--sheet)}
+.tblock div{padding:7px 10px;border-left:1px solid var(--sheet-ink)}.tblock div:first-child{border-left:0}
+.tblock dt{font-size:11.5px;opacity:.7}.tblock dd{margin:0;font-weight:650;font-stretch:110%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:700px){.tblock{grid-template-columns:1fr 1fr}.tblock div:nth-child(3){border-left:0}.tblock div:nth-child(n+3){border-top:1px solid var(--sheet-ink)}.opts{grid-template-columns:1fr}}
+.cols{display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
+.cols>.panel,.stack>.panel{padding:22px}
+.stack{display:flex;flex-direction:column;gap:18px}
+.panel h2{font-size:19px;margin-bottom:12px}
+.panel .sub{margin:-6px 0 14px;font-size:14px;color:var(--ink-2)}
+.why p{margin-bottom:10px;max-width:70ch}
+.note{border-left:3px solid var(--amber-line);background:var(--amber-bg);color:var(--ink);padding:10px 12px;border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:14px;margin-top:10px}
+.note b{color:var(--amber)}
+.pillars{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.pillar{display:grid;grid-template-columns:160px 1fr 34px;gap:10px;align-items:center;font-size:14px}
+.pillar .bar{height:8px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:99px;overflow:hidden}
+.pillar .bar i{display:block;height:100%;background:var(--oc,var(--cobalt));border-radius:99px}
+.pillar b{text-align:right;font-variant-numeric:tabular-nums}
+.radar-wrap{display:flex;flex-direction:column;align-items:center}
+.radar-wrap svg{width:100%;max-width:360px;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:13.5px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.cost-grid{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
+.donut-wrap{display:flex;flex-direction:column;gap:10px;align-items:center}
+.layers{display:flex;flex-direction:column;gap:6px;width:100%;font-size:13.5px}
+.layers div{display:flex;justify-content:space-between;gap:8px}.layers span{display:inline-flex;align-items:center;gap:7px}.layers i{width:10px;height:10px;border-radius:3px;display:inline-block}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{text-align:left;font-weight:620;color:var(--ink-3);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--line)}
+table.t td{padding:8px 10px;border-bottom:1px solid var(--line-2)}
+table.t td.n,table.t th.n{text-align:right;font-variant-numeric:tabular-nums}
+table.t tr:last-child td{border-bottom:0}
+table.t tfoot td{font-weight:700;border-top:1px solid var(--line)}
+.sim-controls{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px}
+.sim-controls .field{min-width:220px;flex:1}
+.sim-controls output{font-weight:700;color:var(--ink)}
+#simChart svg{width:100%;height:auto;display:block}
+.sim-text{margin-top:10px;font-size:14.5px}
+.chat{display:flex;flex-direction:column;gap:12px}
+.thread{display:flex;flex-direction:column;gap:12px;max-height:420px;overflow:auto;padding-right:4px}
+.msg{padding:12px 14px;border-radius:var(--r-md);font-size:14.5px;max-width:92%}
+.msg.q{align-self:flex-end;background:var(--cobalt);color:#fff}
+:root[data-theme="dark"] .msg.q{color:#08131F}
+.msg.a{align-self:flex-start;background:var(--panel-2);border:1px solid var(--line)}
+.msg.a ul{margin:6px 0;padding-left:18px}.msg.a p+p{margin-top:8px}
+.msg .src{margin-top:8px;font-size:12.5px;color:var(--ink-3)}
+.suggest{display:flex;gap:8px;flex-wrap:wrap}
+.suggest button{border:1px dashed var(--line);background:transparent;border-radius:999px;padding:6px 12px;cursor:pointer;color:var(--ink-2);font-size:13.5px}
+.suggest button:hover{border-color:var(--cobalt);color:var(--cobalt)}
+.ask-row{display:flex;gap:8px}.ask-row .input{flex:1}
+.sources{display:flex;flex-direction:column;gap:10px}
+.source{border:1px solid var(--line-2);border-radius:var(--r-md);padding:10px 12px;font-size:14px;background:var(--panel-2)}
+.source b{font-weight:650}.source .s{color:var(--ink-3);font-size:12.5px}
+pre.code{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;font-size:12.5px;line-height:1.5;max-height:420px;overflow:auto;margin:0;white-space:pre}
+details summary{cursor:pointer;font-weight:620;color:var(--cobalt)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px}.kv dt{color:var(--ink-3)}.kv dd{margin:0}
+@media (max-width:980px){.cols,.cost-grid{grid-template-columns:1fr}}
+/* designs, kb, about */
+.empty{padding:48px 24px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+.list .row{display:grid;grid-template-columns:1.6fr 1fr 1fr .8fr auto;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+.list .row:last-child{border-bottom:0}
+.list .row.h{font-size:12.5px;color:var(--ink-3);font-weight:620;padding-top:12px;padding-bottom:10px}
+@media (max-width:760px){.list .row{grid-template-columns:1fr auto}.list .row>*:nth-child(2),.list .row>*:nth-child(3),.list .row>*:nth-child(4){display:none}}
+.kb{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
+.kb-list{display:flex;flex-direction:column;padding:8px}
+.kb-list button{text-align:left;border:0;background:transparent;padding:10px 12px;border-radius:var(--r-md);cursor:pointer;display:flex;flex-direction:column}
+.kb-list button:hover{background:var(--panel-2)}
+.kb-list button[aria-current="true"]{background:var(--cobalt-bg)}
+.kb-list b{font-weight:640;font-size:14.5px}.kb-list span{font-size:12.5px;color:var(--ink-3)}
+.doc{padding:28px 32px;max-width:76ch}
+.doc h1{font-size:26px;margin-bottom:14px}.doc h2{font-size:19px;margin:22px 0 8px}.doc p{margin-bottom:12px}
+@media (max-width:860px){.kb{grid-template-columns:1fr}}
+.about{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.about .panel{padding:24px}
+.about ol,.about ul{padding-left:20px;margin:8px 0 0}.about li{margin-bottom:6px}
+@media (max-width:860px){.about{grid-template-columns:1fr}}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:11px 18px;border-radius:var(--r-md);font-weight:600;font-size:14.5px;z-index:60;box-shadow:var(--shadow)}
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <h1>CloudArch <span>Advisor</span></h1>
-  <p>Generative-AI + RAG architecture recommendations for startups on AWS, scored against the Well-Architected Framework.</p>
-</div></header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 40 40"><rect x="1.5" y="1.5" width="37" height="37" rx="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 25.5h18a5 5 0 0 0-1.6-9.8A7 7 0 0 0 14 16.6 4.5 4.5 0 0 0 11 25.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 30.5h12M20 25.5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-designs" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9h17M8 13h4M8 16h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-2.5-6.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+</svg>
 
-<main class="wrap">
-<div class="card noprint">
-  <div class="row" style="margin-top:0"><b>Quick scenarios:</b>
-    <button class="ghost" data-s="edtech">EdTech app</button>
-    <button class="ghost" data-s="fintech">Fintech (PCI)</button>
-    <button class="ghost" data-s="health">HealthTech (HIPAA)</button>
-    <button class="ghost" data-s="ecom">E-commerce</button>
+<!-- ======================= SIGN IN ======================= -->
+<section id="auth" class="hide" aria-label="Sign in">
+  <div class="auth-art">
+    <div class="brand"><svg><use href="#i-logo"/></svg>CloudArch Advisor</div>
+    <div>
+      <h1>Describe your startup. Get three AWS architectures you can defend.</h1>
+      <p class="lead">Each design comes with a monthly cost, scores on the six Well-Architected pillars, a diagram and a CloudFormation starter template, grounded in AWS guidance through retrieval-augmented generation.</p>
+    </div>
+    <div class="art" aria-hidden="true">
+      <svg viewBox="0 0 640 250" fill="none" stroke="currentColor" stroke-width="1.4" font-family="Archivo, sans-serif" font-size="12">
+        <rect x="8" y="88" width="92" height="44" rx="6"/><text x="54" y="114" text-anchor="middle" fill="currentColor" stroke="none">Users</text>
+        <path d="M100 110h38" marker-end="url(#ah)"/>
+        <rect x="140" y="88" width="110" height="44" rx="6"/><text x="195" y="114" text-anchor="middle" fill="currentColor" stroke="none">CloudFront + WAF</text>
+        <path d="M250 110h38" marker-end="url(#ah)"/>
+        <rect x="290" y="70" width="120" height="80" rx="6" stroke-dasharray="4 3"/><text x="350" y="92" text-anchor="middle" fill="currentColor" stroke="none" font-weight="600">Compute</text>
+        <rect x="305" y="102" width="90" height="34" rx="5"/><text x="350" y="123" text-anchor="middle" fill="currentColor" stroke="none">Lambda</text>
+        <path d="M410 95 L462 52" marker-end="url(#ah)"/><path d="M410 110h52" marker-end="url(#ah)"/><path d="M410 125 L462 168" marker-end="url(#ah)"/>
+        <rect x="464" y="30" width="120" height="40" rx="6"/><text x="524" y="54" text-anchor="middle" fill="currentColor" stroke="none">DynamoDB</text>
+        <rect x="464" y="90" width="120" height="40" rx="6"/><text x="524" y="114" text-anchor="middle" fill="currentColor" stroke="none">S3</text>
+        <rect x="464" y="150" width="120" height="40" rx="6"/><text x="524" y="174" text-anchor="middle" fill="currentColor" stroke="none">SQS</text>
+        <rect x="380" y="205" width="252" height="40" stroke-width="1.6"/><path d="M380 225h252M506 205v40" stroke-width="1"/>
+        <text x="390" y="220" fill="currentColor" stroke="none" font-size="9.5" opacity=".7">Option</text><text x="390" y="239" fill="currentColor" stroke="none" font-weight="600">Balanced</text>
+        <text x="516" y="220" fill="currentColor" stroke="none" font-size="9.5" opacity=".7">Est. monthly</text><text x="516" y="239" fill="currentColor" stroke="none" font-weight="600">$206</text>
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="currentColor" stroke="none"/></marker></defs>
+      </svg>
+    </div>
   </div>
-  <div class="grid" style="margin-top:14px">
-    <div><label>Application type</label><input id="app_type" value="Online learning platform"></div>
-    <div><label>Monthly active users</label><input id="monthly_users" type="number" value="3000"></div>
-    <div><label>Monthly budget (USD)</label><input id="budget" type="number" value="100"></div>
-    <div><label>Engineering team size</label><input id="team_size" type="number" value="3"></div>
-    <div><label>Compliance</label>
-      <select id="compliance"><option value="none">None</option><option value="gdpr">GDPR</option><option value="soc2">SOC 2</option><option value="pci">PCI DSS</option><option value="hipaa">HIPAA</option></select></div>
-    <div><label>Target availability (%)</label>
-      <select id="availability"><option>99</option><option selected>99.9</option><option>99.95</option><option>99.99</option></select></div>
+  <div class="auth-form">
+    <div class="auth-card">
+      <div>
+        <h2 id="authTitle">Sign in</h2>
+        <p class="muted" id="authSub" style="margin-top:6px">Your designs are saved to your account.</p>
+      </div>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" id="tabIn">Sign in</button>
+        <button role="tab" aria-selected="false" id="tabUp">Create account</button>
+      </div>
+      <form id="authForm" class="stack" style="gap:14px" novalidate>
+        <div class="field hide" id="fName"><label for="aName">Name</label><input class="input" id="aName" autocomplete="name"></div>
+        <div class="field"><label for="aEmail">Email</label><input class="input" id="aEmail" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="aPass">Password</label><input class="input" id="aPass" type="password" autocomplete="current-password" required minlength="8"><span class="small muted hide" id="passHint">At least 8 characters.</span></div>
+        <p class="err" id="authErr" role="alert"></p>
+        <button class="btn primary" id="authBtn" type="submit" style="justify-content:center">Sign in</button>
+      </form>
+      <div class="or">or</div>
+      <button class="btn" id="guestBtn" style="justify-content:center">Continue as guest</button>
+      <p class="small muted">Guest designs are shared on this demo and are not tied to an account.</p>
+    </div>
   </div>
-  <div style="margin-top:12px"><label>Describe the startup / product</label>
-    <textarea id="description">Video lessons, quizzes and live doubt-solving sessions for school students. Traffic peaks in the evenings.</textarea></div>
-  <div class="checks">
-    <label><input type="checkbox" id="needs_ai"> AI features</label>
-    <label><input type="checkbox" id="needs_search"> Full-text search</label>
-    <label><input type="checkbox" id="needs_realtime"> Real-time streaming</label>
-    <label><input type="checkbox" id="use_rag" checked> Use RAG knowledge base</label>
-  </div>
-  <div class="row"><button class="primary" id="go">Recommend architecture</button><span id="status" class="mut" style="color:var(--mut)"></span></div>
-</div>
+</section>
 
-<div id="out" class="hide">
-  <div class="card">
-    <div class="tabs" id="tabs"></div>
-    <div id="opt"></div>
+<!-- ======================= APP ======================= -->
+<div id="shell" class="hide">
+  <aside class="side" id="side">
+    <div class="brand"><svg><use href="#i-logo"/></svg>CloudArch Advisor</div>
+    <nav class="nav" aria-label="Main">
+      <a href="#/new" data-v="new"><svg><use href="#i-new"/></svg>New design</a>
+      <a href="#/designs" data-v="designs"><svg><use href="#i-designs"/></svg>My designs</a>
+      <a href="#/kb" data-v="kb"><svg><use href="#i-book"/></svg>Knowledge base</a>
+      <a href="#/about" data-v="about"><svg><use href="#i-info"/></svg>How it works</a>
+    </nav>
+    <div class="foot">
+      <div class="who"><div class="avatar" id="avatar">G</div><div style="min-width:0"><div class="n" id="whoName">Guest</div><div class="e" id="whoEmail">Not signed in</div></div></div>
+      <div class="side-row">
+        <button class="btn ghost" id="themeBtn" title="Switch theme"><svg><use href="#i-moon"/></svg><span id="themeLbl">Dark</span></button>
+        <button class="btn ghost" id="outBtn"><svg><use href="#i-out"/></svg><span id="outLbl">Sign out</span></button>
+      </div>
+    </div>
+  </aside>
+  <div>
+    <div class="topbar"><button class="btn ghost" id="menuBtn" aria-label="Open menu"><svg><use href="#i-menu"/></svg></button><div class="brand" style="font-size:16px"><svg style="width:26px;height:26px"><use href="#i-logo"/></svg>CloudArch Advisor</div><span></span></div>
+    <main id="main">
+
+<!-- ---------- NEW DESIGN ---------- -->
+<section class="view" id="v-new">
+  <div class="page-head"><div><h1>New design</h1><p class="muted">Tell us about the product, its scale and its constraints. You get three architectures to compare.</p></div></div>
+  <div class="wizard" id="wizard">
+    <ol class="steps" id="steps">
+      <li><button data-step="0" aria-current="step"><span class="num">1</span><span><span class="t">Product</span><br><span class="d">What you are building</span></span></button></li>
+      <li><button data-step="1"><span class="num">2</span><span><span class="t">Scale and budget</span><br><span class="d">Users, spend, team</span></span></button></li>
+      <li><button data-step="2"><span class="num">3</span><span><span class="t">Constraints</span><br><span class="d">Compliance and features</span></span></button></li>
+    </ol>
+    <div class="panel">
+      <div class="step-panel" data-panel="0">
+        <div class="field"><span class="lbl">Start from an example</span>
+          <div class="templates" id="templates"></div></div>
+        <div class="field"><label for="app_type">Application type</label><input class="input" id="app_type" placeholder="For example: online learning platform"></div>
+        <div class="field"><label for="description">Describe the product</label><textarea class="input" id="description" placeholder="What does it do, who uses it, when is traffic highest?"></textarea></div>
+        <div class="step-nav"><span></span><button class="btn primary" data-go="1">Continue to scale</button></div>
+      </div>
+      <div class="step-panel hide" data-panel="1">
+        <div class="field"><label for="usersN">Monthly active users</label>
+          <div class="range-row"><input type="range" id="usersR" min="2" max="6" step="0.01" aria-label="Monthly active users"><input class="input" id="usersN" type="number" min="1"></div>
+          <span class="small muted" id="tierNote"></span></div>
+        <div class="field"><label for="budgetN">Monthly infrastructure budget (USD)</label>
+          <div class="range-row"><input type="range" id="budgetR" min="1" max="4" step="0.01" aria-label="Monthly budget"><input class="input" id="budgetN" type="number" min="1"></div></div>
+        <div class="grid2">
+          <div class="field"><label for="team_size">Engineering team size</label><input class="input" id="team_size" type="number" min="1" max="500"></div>
+          <div class="field"><span class="lbl">Target availability</span><div class="seg" id="availSeg"></div></div>
+        </div>
+        <div class="step-nav"><button class="btn ghost" data-go="0">Back</button><button class="btn primary" data-go="2">Continue to constraints</button></div>
+      </div>
+      <div class="step-panel hide" data-panel="2">
+        <div class="field"><span class="lbl">Compliance</span><div class="seg" id="compSeg"></div></div>
+        <div class="field"><span class="lbl">Features</span>
+          <div class="toggles">
+            <label class="tog"><input type="checkbox" id="needs_ai"><span><b>AI features</b><span>Chat, summaries or recommendations in the product</span></span></label>
+            <label class="tog"><input type="checkbox" id="needs_search"><span><b>Full-text search</b><span>Search across a catalogue or documents</span></span></label>
+            <label class="tog"><input type="checkbox" id="needs_realtime"><span><b>Real-time streaming</b><span>Live events, tracking or telemetry</span></span></label>
+            <label class="tog"><input type="checkbox" id="use_rag" checked><span><b>Use the knowledge base</b><span>Ground the AI in AWS guidance (RAG)</span></span></label>
+          </div></div>
+        <div class="field"><span class="lbl">Review</span><dl class="review" id="review"></dl></div>
+        <p class="err" id="runErr" role="alert"></p>
+        <div class="step-nav"><button class="btn ghost" data-go="1">Back</button><button class="btn primary" id="runBtn">Generate architectures</button></div>
+      </div>
+    </div>
   </div>
-  <div class="card"><h3 style="margin-top:0">Side-by-side comparison</h3>
-    <div class="cmpwrap"><div id="radar"></div><div id="cmp" style="flex:1;min-width:280px"></div></div></div>
-  <div class="card"><h3 style="margin-top:0">Retrieved knowledge (RAG sources)</h3><div id="srcs"></div></div>
-  <div class="card"><h3 style="margin-top:0">Run details</h3><pre id="meta"></pre></div>
+  <div class="panel running hide" id="running">
+    <div><h2>Designing your architectures</h2><p class="muted" style="margin-top:8px">Retrieval and validation take milliseconds; the AI model usually answers in 5 to 30 seconds.</p><div class="big" id="elapsed" aria-live="polite">0.0 s</div></div>
+    <ol class="pipe" id="pipe"></ol>
+  </div>
+</section>
+
+<!-- ---------- RESULT ---------- -->
+<section class="view hide" id="v-result">
+  <div class="r-head">
+    <div><h1 id="rTitle"></h1><div class="meta" id="rMeta"></div></div>
+    <div class="actions">
+      <button class="btn primary" id="pdfBtn"><svg><use href="#i-down"/></svg>Download report (PDF)</button>
+      <button class="btn" id="docBtn"><svg><use href="#i-down"/></svg>Word</button>
+      <button class="btn" id="cfnBtn"><svg><use href="#i-down"/></svg>CloudFormation</button>
+      <button class="btn ghost" id="jsonBtn">JSON</button>
+    </div>
+  </div>
+  <div class="opts" id="opts" role="group" aria-label="Architecture options"></div>
+  <figure class="sheet" id="sheet" style="margin:0 0 22px">
+    <div class="dwg" id="dwg" role="img" aria-label="Architecture diagram"></div>
+    <dl class="tblock" id="tblock"></dl>
+  </figure>
+  <div class="cols">
+    <div class="stack">
+      <div class="panel why" id="whyPanel"></div>
+      <div class="panel"><h2>Monthly cost</h2><p class="sub">Estimated on-demand prices in us-east-1 for your user tier. Confirm in the AWS Pricing Calculator.</p>
+        <div class="cost-grid"><div class="donut-wrap" id="donut"></div><div id="costTable"></div></div></div>
+      <div class="panel"><h2>Growth simulator</h2><p class="sub">See how cost changes as users grow and the design moves into larger pricing tiers.</p>
+        <div class="sim-controls">
+          <div class="field"><label for="gRate">Monthly user growth: <output id="gRateO"></output></label><input type="range" id="gRate" min="0" max="40" step="1" value="12" style="accent-color:var(--cobalt)"></div>
+          <div class="field"><label for="gMonths">Horizon: <output id="gMonthsO"></output></label><input type="range" id="gMonths" min="6" max="36" step="6" value="24" style="accent-color:var(--cobalt)"></div>
+        </div>
+        <div id="simChart"></div><p class="sim-text" id="simText"></p></div>
+    </div>
+    <div class="stack">
+      <div class="panel"><h2>Well-Architected scores</h2><p class="sub">Scored 1 to 5 from the components in each design. Cost is scored against your budget.</p>
+        <div class="radar-wrap" id="radar"></div><div class="pillars" id="pillars"></div></div>
+      <div class="panel chat"><h2 style="margin-bottom:0">Ask the architect</h2><p class="sub" style="margin:0">Questions about the selected design, answered with the knowledge base.</p>
+        <div class="thread" id="thread" aria-live="polite"></div>
+        <div class="suggest" id="suggest"></div>
+        <form class="ask-row" id="askForm"><input class="input" id="askIn" placeholder="For example: how do I add disaster recovery?" maxlength="500" aria-label="Your question"><button class="btn primary" id="askBtn" aria-label="Ask"><svg><use href="#i-send"/></svg></button></form>
+      </div>
+      <div class="panel"><h2>Knowledge used</h2><p class="sub" id="srcSub"></p><div class="sources" id="sources"></div></div>
+    </div>
+  </div>
+  <div class="stack" style="margin-top:18px">
+    <div class="panel"><h2>Infrastructure as code</h2><p class="sub">A CloudFormation starter for the selected design. Services that need a VPC or account setup are listed under NextSteps.</p>
+      <div class="actions" style="margin-bottom:12px"><button class="btn" id="copyCfn">Copy template</button><button class="btn" id="copyMer">Copy diagram code</button></div>
+      <pre class="code" id="cfn"></pre></div>
+    <details class="panel" style="padding:18px 22px"><summary>Run details</summary><dl class="kv" id="runKv" style="margin-top:12px"></dl></details>
+  </div>
+</section>
+
+<!-- ---------- DESIGNS ---------- -->
+<section class="view hide" id="v-designs">
+  <div class="page-head"><div><h1>My designs</h1><p class="muted" id="designsSub">Your recent designs. Open one to compare, ask questions or download the report.</p></div><a class="btn primary" href="#/new">New design</a></div>
+  <div class="panel list" id="designList"></div>
+</section>
+
+<!-- ---------- KB ---------- -->
+<section class="view hide" id="v-kb">
+  <div class="page-head"><div><h1>Knowledge base</h1><p class="muted">The documents the AI retrieves from. Each is split into chunks of about 140 words and ranked against your requirements.</p></div></div>
+  <div class="kb"><div class="panel kb-list" id="kbList"></div><article class="panel doc" id="kbDoc"></article></div>
+</section>
+
+<!-- ---------- ABOUT ---------- -->
+<section class="view hide" id="v-about">
+  <div class="page-head"><div><h1>How it works</h1><p class="muted">CloudArch Advisor lets the AI choose and explain components, while code supplies every number, enforces every rule and writes the infrastructure.</p></div><a class="btn" href="https://github.com/sai-140307/cloudarch-advisor" target="_blank" rel="noopener">View source on GitHub</a></div>
+  <div class="about">
+    <div class="panel"><h2>The pipeline</h2><ol>
+      <li><b>Intake.</b> Your answers are normalised and length-limited.</li>
+      <li><b>Retrieve.</b> The six most relevant knowledge-base chunks are ranked with BM25 (or Titan embeddings on AWS).</li>
+      <li><b>Generate.</b> The AI proposes three designs as JSON, using only IDs from a 33-service catalog.</li>
+      <li><b>Validate.</b> Any service outside the catalog is rejected and reported.</li>
+      <li><b>Guardrails.</b> Compliance rules add required controls, such as KMS, CloudTrail and GuardDuty for HIPAA.</li>
+      <li><b>Quantify.</b> Monthly cost per user tier and a 1–5 score on each Well-Architected pillar.</li>
+      <li><b>Output.</b> A diagram, a CloudFormation starter and a saved design.</li></ol></div>
+    <div class="panel"><h2>Where it runs</h2>
+      <table class="t"><thead><tr><th>Layer</th><th>Vercel</th><th>AWS</th></tr></thead><tbody>
+        <tr><td>Compute</td><td>Python function</td><td>AWS Lambda</td></tr>
+        <tr><td>Endpoint</td><td>Vercel edge</td><td>API Gateway or Function URL</td></tr>
+        <tr><td>AI model</td><td>Google Gemini</td><td>Bedrock or Gemini</td></tr>
+        <tr><td>Retrieval</td><td>BM25</td><td>Titan or BM25</td></tr>
+        <tr><td>Storage</td><td>Upstash Redis</td><td>DynamoDB or S3</td></tr>
+        <tr><td>Deployment</td><td>vercel.json</td><td>CloudFormation</td></tr></tbody></table>
+      <p class="small muted" style="margin-top:12px" id="healthLine"></p></div>
+    <div class="panel"><h2>Scoring</h2><p>Each component adds to the pillars it strengthens; for example CloudWatch adds to Operational Excellence and WAF to Security. A pillar score is 1 + 0.75 × the sum, capped at 5. Cost is scored against your budget: 5 at half the budget or less, down to 1 above 150%.</p></div>
+    <div class="panel"><h2>Accounts and data</h2><p>Passwords are hashed with PBKDF2-SHA256 (120,000 iterations, random salt). Sessions use signed tokens that expire after 7 days. Designs are kept for 30 days.</p></div>
+  </div>
+</section>
+
+    </main>
+  </div>
 </div>
-<div class="card noprint"><h3 style="margin-top:0">Recent requests</h3><div id="hist" style="color:var(--mut)">Loading…</div></div>
-</main>
 
 <script>
-const HAS_MER=typeof window.mermaid!=='undefined';
-if(HAS_MER)mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'default'});
-const $=id=>document.getElementById(id);
-const PIL=[["ops","Operational Excellence"],["sec","Security"],["rel","Reliability"],["perf","Performance Efficiency"],["cost","Cost Optimization"],["sus","Sustainability"]];
-const SC={
- edtech:{app_type:"Online learning platform",monthly_users:3000,budget:100,team_size:3,compliance:"none",availability:"99.9",description:"Video lessons, quizzes and live doubt-solving for school students. Traffic peaks in the evenings.",needs_ai:true},
- fintech:{app_type:"Peer-to-peer payments app",monthly_users:60000,budget:1200,team_size:8,compliance:"pci",availability:"99.99",description:"Mobile wallet with card payments and instant transfers. Downtime directly loses money.",needs_realtime:true},
- health:{app_type:"Telemedicine platform",monthly_users:15000,budget:600,team_size:5,compliance:"hipaa",availability:"99.95",description:"Video consultations and electronic health records for clinics.",needs_ai:true},
- ecom:{app_type:"E-commerce store",monthly_users:40000,budget:500,team_size:4,compliance:"gdpr",availability:"99.9",description:"Fashion store with product search, carts and flash sales on weekends.",needs_search:true}
+"use strict";
+/* ---------------- utilities ---------------- */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=v=>"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:0});
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+function toast(msg){const t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
+function download(name,blob){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+const PIL=[["ops","Operational excellence"],["sec","Security"],["rel","Reliability"],["perf","Performance efficiency"],["cost","Cost optimization"],["sus","Sustainability"]];
+const OPT_COL={"Low-cost":"--c-low","Balanced":"--c-bal","High-availability":"--c-ha"};
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const LAYERS=[["edge","Edge and network"],["security","Identity and security"],["compute","Compute"],["data","Data and messaging"],["ops","Operations"]];
+const LAYER_COL=["#2747D6","#E8A33D","#0E8F80","#7A4FD6","#8796A8"];
+
+/* ---------------- state ---------------- */
+let TOKEN=store.get("ca_token"), USER=null, DATA=null, CUR=0, STEP=0, SEQ=0;
+const F={app_type:"",description:"",monthly_users:3000,budget:150,team_size:3,availability:"99.9",compliance:"none",needs_ai:false,needs_search:false,needs_realtime:false,use_rag:true};
+
+async function api(path,opt={}){
+  const h={"Content-Type":"application/json"}; if(TOKEN) h.Authorization="Bearer "+TOKEN;
+  const r=await fetch(path,{method:opt.method||(opt.body?"POST":"GET"),headers:h,body:opt.body?JSON.stringify(opt.body):undefined});
+  let j={}; try{j=await r.json()}catch(e){}
+  if(!r.ok){const e=new Error(j.error||("Request failed ("+r.status+")"));e.status=r.status;throw e}
+  return j;
+}
+
+/* ---------------- theme ---------------- */
+function curTheme(){const t=document.documentElement.dataset.theme;if(t)return t;return matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}
+function setTheme(t){document.documentElement.dataset.theme=t;store.set("ca_theme",t);$("#themeLbl").textContent=t==="dark"?"Light":"Dark";initMermaid();if(DATA&&!$("#v-result").classList.contains("hide"))renderOption()}
+{const t=store.get("ca_theme");if(t)document.documentElement.dataset.theme=t}
+$("#themeBtn").onclick=()=>setTheme(curTheme()==="dark"?"light":"dark");
+
+/* ---------------- mermaid ---------------- */
+const HAS_MER=typeof window.mermaid!=="undefined";
+function initMermaid(forceLight){
+  if(!HAS_MER)return;
+  const dark=!forceLight&&curTheme()==="dark";
+  mermaid.initialize({startOnLoad:false,securityLevel:"strict",theme:"base",flowchart:{htmlLabels:false,curve:"basis",padding:12,nodeSpacing:28,rankSpacing:46},
+    themeVariables:dark?{fontFamily:"Archivo, sans-serif",fontSize:"14px",background:"transparent",primaryColor:"#123A63",primaryTextColor:"#E6EEFF",primaryBorderColor:"#9DB8FF",lineColor:"#B9CCFF",clusterBkg:"rgba(160,190,255,0.06)",clusterBorder:"#6E8BD8",titleColor:"#D9E6FF",edgeLabelBackground:"#0E2846"}
+                       :{fontFamily:"Archivo, sans-serif",fontSize:"14px",background:"transparent",primaryColor:"#FFFFFF",primaryTextColor:"#0B1F33",primaryBorderColor:"#0B1F33",lineColor:"#2747D6",clusterBkg:"rgba(39,71,214,0.04)",clusterBorder:"#7C8FB8",titleColor:"#0B1F33",edgeLabelBackground:"#F9FBFD"}});
+}
+initMermaid();
+async function renderMermaid(code,lightForExport){
+  if(!HAS_MER)throw new Error("no mermaid");
+  if(lightForExport){initMermaid(true);try{return (await mermaid.render("mx"+(++SEQ),code)).svg}finally{initMermaid()}}
+  return (await mermaid.render("m"+(++SEQ),code)).svg;
+}
+
+/* ---------------- auth screen ---------------- */
+let MODE="in";
+function authMode(m){MODE=m;const up=m==="up";
+  $("#tabIn").setAttribute("aria-selected",!up);$("#tabUp").setAttribute("aria-selected",up);
+  $("#fName").classList.toggle("hide",!up);$("#passHint").classList.toggle("hide",!up);
+  $("#authTitle").textContent=up?"Create your account":"Sign in";$("#authBtn").textContent=up?"Create account":"Sign in";
+  $("#authSub").textContent=up?"Save designs and come back to them later.":"Your designs are saved to your account.";
+  $("#aPass").autocomplete=up?"new-password":"current-password";$("#authErr").textContent=""}
+$("#tabIn").onclick=()=>authMode("in");$("#tabUp").onclick=()=>authMode("up");
+$("#authForm").onsubmit=async e=>{e.preventDefault();const b=$("#authBtn");b.disabled=true;$("#authErr").textContent="";
+  try{const body={email:$("#aEmail").value,password:$("#aPass").value};if(MODE==="up")body.name=$("#aName").value;
+    const j=await api(MODE==="up"?"/api/auth/signup":"/api/auth/login",{body});
+    TOKEN=j.token;USER=j.user;store.set("ca_token",TOKEN);store.del("ca_guest");enterApp();toast(MODE==="up"?"Account created":"Signed in")}
+  catch(err){$("#authErr").textContent=err.message}finally{b.disabled=false}};
+$("#guestBtn").onclick=()=>{store.set("ca_guest","1");TOKEN=null;USER=null;enterApp()};
+$("#outBtn").onclick=()=>{store.del("ca_token");store.del("ca_guest");TOKEN=null;USER=null;DATA=null;location.hash="";showAuth()};
+function showAuth(){$("#shell").classList.add("hide");$("#auth").classList.remove("hide");authMode("in")}
+function enterApp(){
+  $("#auth").classList.add("hide");$("#shell").classList.remove("hide");
+  const n=USER?USER.name:"Guest";$("#whoName").textContent=n;$("#whoEmail").textContent=USER?USER.email:"Not signed in";
+  $("#avatar").textContent=n.trim().charAt(0).toUpperCase()||"G";$("#outLbl").textContent=USER?"Sign out":"Sign in";
+  $("#themeLbl").textContent=curTheme()==="dark"?"Light":"Dark";
+  if(!location.hash||location.hash==="#/")location.hash="#/new";else route();
+}
+$("#menuBtn").onclick=()=>$("#side").classList.toggle("open");
+
+/* ---------------- routing ---------------- */
+function show(v){$$(".view").forEach(x=>x.classList.toggle("hide",x.id!=="v-"+v));$$(".nav a").forEach(a=>a.toggleAttribute("aria-current",a.dataset.v===(v==="result"?"designs":v)));
+  $$(".nav a").forEach(a=>{if(a.hasAttribute("aria-current"))a.setAttribute("aria-current","page")});$("#side").classList.remove("open");window.scrollTo(0,0)}
+async function route(){
+  if($("#shell").classList.contains("hide"))return;
+  const h=location.hash.replace(/^#\//,"").split("/");
+  if(h[0]==="design"&&h[1]){
+    if(!DATA||DATA.id!==h[1]){try{DATA=await api("/api/design/"+encodeURIComponent(h[1]));CUR=Math.max(0,DATA.options.findIndex(o=>o.name===DATA.recommended))}catch(e){toast(e.message);location.hash="#/designs";return}}
+    show("result");renderResult();return}
+  if(h[0]==="designs"){show("designs");loadDesigns();return}
+  if(h[0]==="kb"){show("kb");loadKb();return}
+  if(h[0]==="about"){show("about");loadHealth();return}
+  show("new");
+}
+addEventListener("hashchange",route);
+
+/* ---------------- wizard ---------------- */
+const TEMPLATES=[
+ {k:"EdTech app",d:"3k users, $150",f:{app_type:"Online learning platform",description:"Video lessons, quizzes and live doubt-solving sessions for school students. Traffic peaks in the evenings.",monthly_users:3000,budget:150,team_size:3,availability:"99.9",compliance:"none",needs_ai:true,needs_search:false,needs_realtime:false}},
+ {k:"Fintech wallet",d:"60k users, PCI DSS",f:{app_type:"Peer-to-peer payments wallet",description:"Mobile wallet with card payments and instant transfers. Downtime directly loses money.",monthly_users:60000,budget:1500,team_size:8,availability:"99.99",compliance:"pci",needs_ai:false,needs_search:false,needs_realtime:true}},
+ {k:"Telemedicine",d:"15k users, HIPAA",f:{app_type:"Telemedicine platform",description:"Video consultations and electronic health records for clinics.",monthly_users:15000,budget:600,team_size:5,availability:"99.95",compliance:"hipaa",needs_ai:true,needs_search:false,needs_realtime:false}},
+ {k:"E-commerce store",d:"40k users, GDPR",f:{app_type:"Fashion e-commerce store",description:"Catalogue search, carts and weekend flash sales.",monthly_users:40000,budget:600,team_size:4,availability:"99.9",compliance:"gdpr",needs_ai:false,needs_search:true,needs_realtime:false}},
+ {k:"B2B SaaS",d:"8k users, SOC 2",f:{app_type:"B2B project management SaaS",description:"Teams, tasks, reports and integrations with other tools.",monthly_users:8000,budget:300,team_size:6,availability:"99.9",compliance:"soc2",needs_ai:false,needs_search:true,needs_realtime:false}},
+ {k:"Game backend",d:"250k users, real-time",f:{app_type:"Mobile multiplayer game backend",description:"Leaderboards, matchmaking and live matches.",monthly_users:250000,budget:4000,team_size:10,availability:"99.9",compliance:"none",needs_ai:false,needs_search:false,needs_realtime:true}}];
+$("#templates").innerHTML=TEMPLATES.map((t,i)=>`<button type="button" class="tpl" data-t="${i}" aria-pressed="false"><b>${esc(t.k)}</b><span>${esc(t.d)}</span></button>`).join("");
+$$(".tpl").forEach(b=>b.onclick=()=>{Object.assign(F,TEMPLATES[b.dataset.t].f);$$(".tpl").forEach(x=>x.setAttribute("aria-pressed",x===b));syncForm()});
+const AVAIL=[["99","99%"],["99.9","99.9%"],["99.95","99.95%"],["99.99","99.99%"]];
+const COMP=[["none","None"],["gdpr","GDPR"],["soc2","SOC 2"],["pci","PCI DSS"],["hipaa","HIPAA"]];
+function seg(el,list,key){el.innerHTML=list.map(([v,l])=>`<button type="button" data-v="${v}" aria-pressed="${F[key]===v}">${l}</button>`).join("");
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{F[key]=b.dataset.v;seg(el,list,key);review()})}
+const tierOf=u=>u<5000?0:u<100000?1:2, TIER_NAME=["small tier (under 5,000 users)","medium tier (5,000 to 100,000 users)","large tier (over 100,000 users)"];
+function syncForm(){
+  $("#app_type").value=F.app_type;$("#description").value=F.description;
+  $("#usersN").value=F.monthly_users;$("#usersR").value=Math.log10(Math.max(F.monthly_users,100));
+  $("#budgetN").value=F.budget;$("#budgetR").value=Math.log10(Math.max(F.budget,10));$("#team_size").value=F.team_size;
+  ["needs_ai","needs_search","needs_realtime","use_rag"].forEach(k=>$("#"+k).checked=!!F[k]);
+  seg($("#availSeg"),AVAIL,"availability");seg($("#compSeg"),COMP,"compliance");
+  $("#tierNote").textContent="Priced in the "+TIER_NAME[tierOf(F.monthly_users)]+".";review()}
+$("#app_type").oninput=e=>F.app_type=e.target.value;$("#description").oninput=e=>F.description=e.target.value;
+$("#usersR").oninput=e=>{F.monthly_users=Math.round(10**e.target.value/100)*100||100;syncForm()};
+$("#usersN").oninput=e=>{F.monthly_users=Math.max(1,+e.target.value||1);$("#usersR").value=Math.log10(Math.max(F.monthly_users,100));$("#tierNote").textContent="Priced in the "+TIER_NAME[tierOf(F.monthly_users)]+".";review()};
+$("#budgetR").oninput=e=>{const v=10**e.target.value;F.budget=v<100?Math.round(v/5)*5:Math.round(v/50)*50;$("#budgetN").value=F.budget;review()};
+$("#budgetN").oninput=e=>{F.budget=Math.max(1,+e.target.value||1);$("#budgetR").value=Math.log10(Math.max(F.budget,10));review()};
+$("#team_size").oninput=e=>{F.team_size=Math.max(1,+e.target.value||1);review()};
+["needs_ai","needs_search","needs_realtime","use_rag"].forEach(k=>$("#"+k).onchange=e=>{F[k]=e.target.checked;review()});
+function review(){const feats=[F.needs_ai&&"AI",F.needs_search&&"Search",F.needs_realtime&&"Real-time"].filter(Boolean).join(", ")||"None";
+  $("#review").innerHTML=[["Users",Number(F.monthly_users).toLocaleString()],["Budget",money(F.budget)+"/mo"],["Team",F.team_size+" engineers"],["Availability",F.availability+"%"],
+   ["Compliance",(COMP.find(c=>c[0]===F.compliance)||[0,"None"])[1]],["Features",feats],["Knowledge base",F.use_rag?"On":"Off"],["Product",F.app_type||"Not set"]]
+   .map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}
+function goStep(n){STEP=n;$$("[data-panel]").forEach(p=>p.classList.toggle("hide",+p.dataset.panel!==n));
+  $$("#steps button").forEach(b=>{const s=+b.dataset.step;b.toggleAttribute("aria-current",s===n);if(s===n)b.setAttribute("aria-current","step");b.classList.toggle("done",s<n)})}
+$$("[data-go]").forEach(b=>b.onclick=()=>goStep(+b.dataset.go));$$("#steps button").forEach(b=>b.onclick=()=>goStep(+b.dataset.step));
+Object.assign(F,TEMPLATES[0].f);syncForm();$$(".tpl")[0].setAttribute("aria-pressed","true");
+
+/* ---------------- run ---------------- */
+const STAGES=["Read your requirements","Retrieve AWS guidance","Generate three designs","Validate against the catalog","Apply compliance guardrails","Price and score","Draw diagrams and templates"];
+$("#pipe").innerHTML=STAGES.map((s,i)=>`<li><span class="dot">${i+1}</span>${s}</li>`).join("");
+$("#runBtn").onclick=async()=>{
+  if(!F.app_type.trim()){$("#runErr").textContent="Add an application type in step 1.";goStep(0);$("#app_type").focus();return}
+  $("#runErr").textContent="";$("#wizard").classList.add("hide");$("#running").classList.remove("hide");
+  const lis=$$("#pipe li"),t0=performance.now();let stage=0;
+  const tick=setInterval(()=>{const s=(performance.now()-t0)/1000;$("#elapsed").textContent=s.toFixed(1)+" s";
+    const target=s<.6?1:s<1.2?2:2;if(stage<target)stage=target;lis.forEach((li,i)=>{li.classList.toggle("done",i<stage);li.classList.toggle("on",i===stage)})},100);
+  try{DATA=await api("/api/recommend",{body:F});clearInterval(tick);
+    for(let i=stage;i<=STAGES.length;i++){lis.forEach((li,j)=>{li.classList.toggle("done",j<i);li.classList.toggle("on",j===i)});await new Promise(r=>setTimeout(r,matchMedia("(prefers-reduced-motion: reduce)").matches?0:140))}
+    CUR=Math.max(0,DATA.options.findIndex(o=>o.name===DATA.recommended));location.hash="#/design/"+DATA.id}
+  catch(e){clearInterval(tick);$("#runErr").textContent="The design could not be generated: "+e.message+". Try again."}
+  finally{$("#running").classList.add("hide");$("#wizard").classList.remove("hide");lis.forEach(li=>li.className="")}
 };
-document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{
-  const s=SC[b.dataset.s];
-  ["app_type","monthly_users","budget","team_size","compliance","availability","description"].forEach(k=>$(k).value=s[k]);
-  ["needs_ai","needs_search","needs_realtime"].forEach(k=>$(k).checked=!!s[k]);
-});
-let DATA=null, CUR=0, SEQ=0;
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-$('go').onclick=async()=>{
-  const body={};
-  ["app_type","monthly_users","budget","team_size","compliance","availability","description"].forEach(k=>body[k]=$(k).value);
-  ["needs_ai","needs_search","needs_realtime","use_rag"].forEach(k=>body[k]=$(k).checked);
-  $('go').disabled=true;$('status').textContent='Retrieving knowledge and designing architectures… (10–25 s)';
-  try{
-    const r=await fetch('api/recommend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status);
-    DATA=j;CUR=1;render();$('out').classList.remove('hide');$('status').textContent='Done in '+j.timings.total_s+' s';
-    $('out').scrollIntoView({behavior:'smooth'}); loadHist();
-  }catch(e){$('status').textContent='Error: '+e.message}
-  $('go').disabled=false;
-};
-function render(){
-  $('tabs').innerHTML=DATA.options.map((o,i)=>`<button class="tab ${i==CUR?'on':''}" onclick="CUR=${i};render()">${o.name}</button>`).join('');
-  const o=DATA.options[CUR];
-  const bars=PIL.map(([k,l])=>`<div class="bar"><span>${l}</span><div class="track"><div class="fill" style="width:${o.scores[k]*20}%"></div></div><b>${o.scores[k]}</b></div>`).join('');
-  const rows=o.components.map(c=>`<tr><td>${esc(c.name)}</td><td class="n">$${c.cost.toFixed(2)}</td></tr>`).join('');
-  $('opt').innerHTML=`
-   <div class="kpis">
-    <div class="kpi"><b>$${o.monthly_cost.toLocaleString()}</b><small>est. / month</small></div>
-    <div class="kpi"><b class="${o.within_budget?'ok':'bad'}">${o.within_budget?'Within':'Over'}</b><small>budget $${DATA.requirements.budget.toLocaleString()}</small></div>
-    <div class="kpi"><b>${o.scores.overall}/5</b><small>Well-Architected score</small></div>
-    <div class="kpi"><b>${o.components.length}</b><small>AWS components</small></div>
-    <div class="kpi"><b>${o.source==='llm'?'GenAI':'Fallback'}</b><small>generated by</small></div>
-   </div>
-   <h3>Why this architecture</h3><p>${esc(o.reasoning||'')}</p>
-   <p style="color:var(--mut)"><b>Trade-offs:</b> ${esc(o.tradeoffs||'')}</p>
-   ${o.notes.map(n=>`<div class="note">⚠ ${esc(n)}</div>`).join('')}
-   <h3>Well-Architected pillar scores</h3>${bars}
-   <h3>Architecture diagram</h3><div class="mer" id="mer"></div>
-   <div class="row"><button class="ghost" onclick="navigator.clipboard.writeText(DATA.options[CUR].diagram)">Copy Mermaid code</button>
-   <button class="ghost" onclick="dlCfn()">Download CloudFormation template</button>
-   <button class="ghost" onclick="dl()">Download JSON</button>
-   <button class="ghost" onclick="window.print()">Save as PDF</button></div>
-   <h3>Generated infrastructure-as-code (CloudFormation starter)</h3>
-   <details><summary style="cursor:pointer;color:var(--acc)">Show template</summary><pre>${esc(o.cloudformation)}</pre></details>
-   <h3>Cost breakdown (monthly estimate)</h3><table><tr><th>Component</th><th class="n">USD</th></tr>${rows}
-   <tr><td><b>Total</b></td><td class="n"><b>$${o.monthly_cost.toFixed(2)}</b></td></tr></table>
-   ${o.invalid_components.length?`<h3>Hallucinated services rejected</h3><div class="chips">${o.invalid_components.map(x=>`<span class="chip g">${esc(x)}</span>`).join('')}</div>`:''}
-   ${o.guardrail_added.length?`<h3>Added by guardrails</h3><div class="chips">${o.guardrail_added.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`:''}`;
-  const id='m'+(++SEQ);
-  if(!HAS_MER){$('mer').innerHTML='<pre>'+esc(o.diagram)+'</pre><small>Diagram library could not load (offline). Paste this code at mermaid.live to view.</small>'}
-  else mermaid.render(id,o.diagram).then(r=>{$('mer').innerHTML=r.svg}).catch(e=>{$('mer').innerHTML='<pre>'+esc(o.diagram)+'</pre>'});
-  // comparison
-  const best=(f,hi)=>{const v=DATA.options.map(f);const t=hi?Math.max(...v):Math.min(...v);return v.map(x=>x===t)};
-  const rowsC=[["Monthly cost ($)",x=>x.monthly_cost,false],["Overall score",x=>x.scores.overall,true],...PIL.map(([k,l])=>[l,x=>x.scores[k],true])];
-  $('cmp').innerHTML='<table class="cmp"><tr><th></th>'+DATA.options.map(o=>`<th class="n">${o.name}</th>`).join('')+'</tr>'+
-   rowsC.map(([l,f,hi])=>{const b=best(f,hi);return `<tr><td>${l}</td>`+DATA.options.map((o,i)=>`<td class="n ${b[i]?'best':''}">${f(o)}</td>`).join('')+'</tr>'}).join('')+'</table>';
-  radar();
-  $('srcs').innerHTML=DATA.sources.length?DATA.sources.map(s=>`<div class="src"><b>${esc(s.source)}</b> · similarity ${s.score}<br>${esc(s.text)}…</div>`).join(''):'<i>RAG disabled for this run (baseline: model answers from its own memory only).</i>';
-  $('meta').textContent=JSON.stringify({model:DATA.model,rag:DATA.requirements.use_rag,timings:DATA.timings,llm_error:DATA.llm_error},null,2);
+
+/* ---------------- result ---------------- */
+function renderResult(){
+  const r=DATA.requirements;
+  $("#rTitle").textContent=r.app_type;
+  const comp=(COMP.find(c=>c[0]===r.compliance)||[0,"No compliance"])[1];
+  $("#rMeta").innerHTML=[`${Number(r.monthly_users).toLocaleString()} users / month`,`Budget ${money(r.budget)} / month`,`Team of ${r.team_size}`,`${r.availability}% availability`,r.compliance==="none"?"No compliance regime":comp]
+    .map(x=>`<span class="chip">${esc(x)}</span>`).join("")+(DATA.options.some(o=>o.source!=="llm")?`<span class="chip warn">Some options from rule-based fallback</span>`:`<span class="chip ok">Generated by ${esc(DATA.provider==="gemini"?"Gemini":"Bedrock")}</span>`);
+  $("#opts").innerHTML=DATA.options.map((o,i)=>`<button class="opt" style="--oc:var(${OPT_COL[o.name]})" aria-pressed="${i===CUR}" data-i="${i}">
+     <div class="top"><span class="nm"><i></i>${esc(o.name)}</span>${o.name===DATA.recommended?'<span class="rec">Recommended</span>':""}</div>
+     <div class="nums"><span class="cost">${money(o.monthly_cost)}<small> / month</small></span><span class="sc"><b>${o.scores.overall.toFixed(1)}</b> / 5</span></div>
+     <span class="chip ${o.within_budget?"ok":"bad"}" style="align-self:flex-start">${o.within_budget?"Within budget":"Over budget by "+money(o.monthly_cost-r.budget)}</span></button>`).join("");
+  $$(".opt").forEach(b=>b.onclick=()=>{CUR=+b.dataset.i;$$(".opt").forEach(x=>x.setAttribute("aria-pressed",x===b));renderOption()});
+  $("#thread").innerHTML="";
+  renderOption();renderRadar();renderSources();
+  $("#runKv").innerHTML=[["Design ID",DATA.id],["Created by",DATA.owner],["Model",DATA.model+" ("+DATA.provider+")"],["Retriever",DATA.retriever||"none"],["Retrieval",DATA.timings.retrieve_s+" s"],["Generation",DATA.timings.generate_s+" s"],["Total",DATA.timings.total_s+" s"],["AI status",DATA.llm_error?DATA.llm_error:"OK"]]
+    .map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 }
-const COL=['#0b6bcb','#1a9e5c','#d9822b'];
-function radar(){
-  const W=320,H=300,cx=W/2,cy=H/2+4,R=110,n=PIL.length;
-  const pt=(i,v)=>{const a=-Math.PI/2+i*2*Math.PI/n;return [cx+R*v/5*Math.cos(a),cy+R*v/5*Math.sin(a)]};
-  let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" role="img" aria-label="Pillar radar chart">`;
-  for(let r=1;r<=5;r++){s+=`<polygon points="${PIL.map((_,i)=>pt(i,r).join(',')).join(' ')}" style="fill:none;stroke:var(--line)"/>`}
-  PIL.forEach(([k,l],i)=>{const [x,y]=pt(i,5);const [lx,ly]=pt(i,6.1);
-    s+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" style="stroke:var(--line)"/><text x="${lx}" y="${ly}" font-size="10.5" style="fill:var(--mut)" text-anchor="middle" dominant-baseline="middle">${l.split(' ')[0]}</text>`});
-  DATA.options.forEach((o,j)=>{s+=`<polygon points="${PIL.map(([k],i)=>pt(i,o.scores[k]).join(',')).join(' ')}" fill="${COL[j]}" fill-opacity=".12" stroke="${COL[j]}" stroke-width="2"/>`});
-  s+='</svg><div class="lg">'+DATA.options.map((o,j)=>`<span><i style="background:${COL[j]}"></i>${o.name}</span>`).join('')+'</div>';
-  $('radar').innerHTML=s;
+async function renderOption(){
+  const o=DATA.options[CUR],r=DATA.requirements,oc=`var(${OPT_COL[o.name]})`;
+  // drawing sheet
+  const dwg=$("#dwg");
+  try{dwg.innerHTML=await renderMermaid(o.diagram)}catch(e){dwg.innerHTML=`<pre class="code" style="width:100%">${esc(o.diagram)}</pre>`}
+  const d=new Date((DATA.created||Date.now()/1000)*1000);
+  $("#tblock").innerHTML=[["Project",r.app_type],["Option",o.name],["Est. monthly",money(o.monthly_cost)],["Sheet",`${CUR+1} of 3 · ${d.toLocaleDateString()}`]].map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
+  $("#sheet").setAttribute("aria-label",`${o.name} architecture diagram`);
+  // why
+  const notes=o.notes.map(n=>`<div class="note"><b>Guardrail.</b> ${esc(n.replace(/^Guardrail /,"").replace(/^./,c=>c.toUpperCase()))}</div>`).join("");
+  const inv=o.invalid_components.length?`<div class="note"><b>Rejected.</b> The AI suggested services that are not in the catalog: ${o.invalid_components.map(esc).join(", ")}.</div>`:"";
+  $("#whyPanel").innerHTML=`<h2>Why this design</h2><p>${esc(o.reasoning||"")}</p>${o.tradeoffs?`<p class="muted"><b>Trade-offs.</b> ${esc(o.tradeoffs)}</p>`:""}${notes}${inv}`;
+  // pillars
+  $("#pillars").innerHTML=PIL.map(([k,l])=>`<div class="pillar" style="--oc:${oc}"><span>${l}</span><span class="bar"><i style="width:${o.scores[k]*20}%"></i></span><b>${o.scores[k].toFixed(1)}</b></div>`).join("");
+  // cost
+  const byLayer=LAYERS.map(([k])=>o.components.filter(c=>c.layer===k).reduce((s,c)=>s+c.cost,0));
+  $("#donut").innerHTML=donut(byLayer,o.monthly_cost)+`<div class="layers">${LAYERS.map(([k,l],i)=>byLayer[i]?`<div><span><i style="background:${LAYER_COL[i]}"></i>${l}</span><b>${money(byLayer[i])}</b></div>`:"").join("")}</div>`;
+  const rows=[...o.components].sort((a,b)=>b.cost-a.cost);
+  const li=k=>Math.max(0,LAYERS.findIndex(l=>l[0]===k));
+  $("#costTable").innerHTML=`<table class="t"><thead><tr><th>Service</th><th class="n">Per month</th></tr></thead><tbody>${rows.map(c=>`<tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:${LAYER_COL[li(c.layer)]}" title="${esc(LAYERS[li(c.layer)][1])}"></span>${esc(c.name)}${o.guardrail_added.includes(c.id)?' <span class="chip warn" style="padding:1px 7px;font-size:12px">added by guardrail</span>':""}</td><td class="n">${money(c.cost)}</td></tr>`).join("")}</tbody><tfoot><tr><td>Total</td><td class="n">${money(o.monthly_cost)}</td></tr></tfoot></table>`;
+  // IaC
+  $("#cfn").textContent=o.cloudformation;
+  // ask suggestions
+  const sug=["How do I add disaster recovery?","Where can I cut cost first?",r.compliance!=="none"?"What else does "+(COMP.find(c=>c[0]===r.compliance)||[0,""])[1]+" require?":"How do I secure the API?","What breaks first at 10x users?"];
+  $("#suggest").innerHTML=sug.map(s=>`<button type="button">${esc(s)}</button>`).join("");
+  $$("#suggest button").forEach(b=>b.onclick=()=>{$("#askIn").value=b.textContent;ask()});
+  renderRadar();simulate();
 }
-function dlCfn(){const o=DATA.options[CUR];const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([o.cloudformation],{type:'text/yaml'}));a.download=o.name.toLowerCase().replace(/[^a-z]+/g,'-')+'-template.yaml';a.click()}
-function dl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'}));a.download='architecture-'+DATA.id+'.json';a.click()}
-async function loadHist(){
-  try{const r=await fetch('api/history');const h=await r.json();
-   $('hist').innerHTML=h.length?'<table><tr><th>App</th><th class="n">Users</th><th class="n">Budget</th><th>Compliance</th><th>RAG</th></tr>'+h.map(x=>`<tr><td>${esc(x.app_type)}</td><td class="n">${x.users}</td><td class="n">$${x.budget}</td><td>${esc(x.compliance)}</td><td>${x.use_rag?'on':'off'}</td></tr>`).join('')+'</table>':'No requests yet.'}
-  catch(e){$('hist').textContent='History unavailable.'}
-}
-loadHist();
+function donut(vals,total){
+  const R=80,C=2*Math.PI*R;let off=0,s=`<svg viewBox="0 0 200 200" width="190" role="img" aria-label="Cost by layer">`;
+  s+=`<circle cx="100" cy="100" r="${R}" fill="none" stroke="var(--panel-2)" stroke-width="26"/>`;
+  vals.forEach((v,i)=>{if(!v)return;const len=v/total*C;s+=`<circle cx="100" cy="100" r="${R}" fill="none" stroke="${LAYER_COL[i]}" stroke-width="26" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"/>`;off+=len});
+  return s+`<text x="100" y="98" text-anchor="middle" font-size="26" font-weight="760" fill="var(--ink)" font-family="Archivo">${money(total)}</text><text x="100" y="120" text-anchor="middle" font-size="12.5" fill="var(--ink-3)" font-family="Archivo">per month</text></svg>`}
+function renderRadar(){
+  const W=360,H=330,cx=W/2,cy=H/2+6,R=112,n=6;const pt=(i,v)=>{const a=-Math.PI/2+i*2*Math.PI/n;return[cx+R*v/5*Math.cos(a),cy+R*v/5*Math.sin(a)]};
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Pillar scores of the three options">`;
+  for(let r=1;r<=5;r++)s+=`<polygon points="${PIL.map((_,i)=>pt(i,r).join(",")).join(" ")}" fill="none" stroke="var(--line)"/>`;
+  PIL.forEach(([k,l],i)=>{const[x,y]=pt(i,5),[lx,ly]=pt(i,6.15);s+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--line)"/><text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="var(--ink-2)" font-family="Archivo">${l.split(" ")[0]}</text>`});
+  DATA.options.forEach((o,j)=>{const c=cssv(OPT_COL[o.name]),on=j===CUR;s+=`<polygon points="${PIL.map(([k],i)=>pt(i,o.scores[k]).join(",")).join(" ")}" fill="${c}" fill-opacity="${on?.2:.04}" stroke="${c}" stroke-width="${on?2.4:1.2}" stroke-opacity="${on?1:.6}"/>`});
+  $("#radar").innerHTML=s+`</svg><div class="legend">${DATA.options.map((o,j)=>`<span style="${j===CUR?"color:var(--ink);font-weight:650":""}"><i style="background:var(${OPT_COL[o.name]})"></i>${esc(o.name)} ${o.scores.overall.toFixed(1)}</span>`).join("")}</div>`}
+function renderSources(){
+  const s=DATA.sources||[];$("#srcSub").textContent=s.length?`${s.length} passages retrieved with ${DATA.retriever||"the retriever"} and given to the AI.`:"The knowledge base was off for this design, so the AI answered from its own training.";
+  $("#sources").innerHTML=s.map(x=>`<div class="source"><b>${esc(x.source.replace(/^\d+_/,"").replace(/_/g," ").replace(/\.md$/,""))}</b> <span class="s">relevance ${x.score}</span><div class="muted" style="margin-top:4px">${esc(x.text.replace(/^#+.*$/gm,"").replace(/\s+/g," ").trim().slice(0,190))}…</div></div>`).join("")}
+
+/* growth simulator */
+const sim={rate:$("#gRate"),months:$("#gMonths")};
+sim.rate.oninput=simulate;sim.months.oninput=simulate;
+function simulate(){
+  if(!DATA)return;const g=+sim.rate.value/100,M=+sim.months.value,u0=DATA.requirements.monthly_users,budget=DATA.requirements.budget;
+  $("#gRateO").textContent=sim.rate.value+"%";$("#gMonthsO").textContent=M+" months";
+  const users=m=>u0*Math.pow(1+g,m);const series=DATA.options.map(o=>Array.from({length:M+1},(_,m)=>o.components.reduce((s,c)=>s+(c.tiers?c.tiers[tierOf(users(m))]:c.cost),0)));
+  const W=640,H=260,L=56,Rr=16,T=16,B=36;const maxY=Math.max(budget,...series.flat())*1.1;const X=m=>L+(W-L-Rr)*m/M,Y=v=>T+(H-T-B)*(1-v/maxY);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected monthly cost">`;
+  for(let i=0;i<=4;i++){const v=maxY*i/4;s+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line-2)"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="11.5" fill="var(--ink-3)" font-family="Archivo">${money(v)}</text>`}
+  for(let m=0;m<=M;m+=M>12?6:3)s+=`<text x="${X(m)}" y="${H-12}" text-anchor="middle" font-size="11.5" fill="var(--ink-3)" font-family="Archivo">${m===0?"Now":"M"+m}</text>`;
+  [5000,100000].forEach(th=>{for(let m=1;m<=M;m++)if(users(m-1)<th&&users(m)>=th){s+=`<line x1="${X(m)}" x2="${X(m)}" y1="${T}" y2="${H-B}" stroke="var(--ink-3)" stroke-dasharray="2 4"/><text x="${X(m)+5}" y="${T+11}" font-size="11" fill="var(--ink-3)" font-family="Archivo">${th.toLocaleString()} users</text>`;break}});
+  s+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(budget)}" y2="${Y(budget)}" stroke="var(--amber-line)" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${W-Rr}" y="${Y(budget)-6}" text-anchor="end" font-size="11.5" fill="var(--amber)" font-family="Archivo">Budget ${money(budget)}</text>`;
+  series.forEach((ser,j)=>{const c=cssv(OPT_COL[DATA.options[j].name]),on=j===CUR;
+    s+=`<path d="${ser.map((v,m)=>(m?"H"+X(m)+"V"+Y(v):"M"+X(0)+" "+Y(v))).join("")}" fill="none" stroke="${c}" stroke-width="${on?2.6:1.3}" stroke-opacity="${on?1:.55}"/>`});
+  $("#simChart").innerHTML=s+`</svg><div class="legend" style="margin-top:6px">${DATA.options.map((o,j)=>`<span style="${j===CUR?"color:var(--ink);font-weight:650":""}"><i style="background:var(${OPT_COL[o.name]})"></i>${esc(o.name)}</span>`).join("")}<span><i style="background:var(--amber-line);height:2px"></i>Budget</span></div>`;
+  const o=DATA.options[CUR],end=series[CUR][M],cross=series[CUR].findIndex(v=>v>budget);
+  $("#simText").innerHTML=`At ${sim.rate.value}% monthly growth you reach about <b>${Math.round(users(M)).toLocaleString()} users</b> in ${M} months. ${esc(o.name)} would then cost <b>${money(end)}/month</b>`+
+    (cross===-1?", still within your budget.":cross===0?", and it is already over budget today.":`, and passes your budget in <b>month ${cross}</b>.`)}
+
+/* ask the architect */
+function fmtAnswer(t){const lines=esc(t).split(/\n+/);let h="",inList=false;
+  lines.forEach(l=>{l=l.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");if(/^\s*[-*•]\s+/.test(l)){if(!inList){h+="<ul>";inList=true}h+="<li>"+l.replace(/^\s*[-*•]\s+/,"")+"</li>"}else{if(inList){h+="</ul>";inList=false}if(l.trim())h+="<p>"+l+"</p>"}});
+  return h+(inList?"</ul>":"")}
+async function ask(){
+  const q=$("#askIn").value.trim();if(!q)return;$("#askIn").value="";const th=$("#thread");
+  th.insertAdjacentHTML("beforeend",`<div class="msg q">${esc(q)}</div><div class="msg a" id="pending"><span class="muted">Thinking…</span></div>`);th.scrollTop=th.scrollHeight;$("#askBtn").disabled=true;
+  try{const o=DATA.options[CUR];const j=await api("/api/ask",{body:{question:q,option:{name:o.name,monthly_cost:o.monthly_cost,reasoning:o.reasoning,components:o.components.map(c=>({name:c.name}))},requirements:DATA.requirements}});
+    $("#pending").outerHTML=`<div class="msg a">${fmtAnswer(j.answer)}${j.sources&&j.sources.length?`<div class="src">From: ${j.sources.map(s=>esc(s.source.replace(/^\d+_/,"").replace(/\.md$/,"").replace(/_/g," "))).join(", ")}</div>`:""}</div>`}
+  catch(e){$("#pending").outerHTML=`<div class="msg a">The question could not be answered: ${esc(e.message)}</div>`}
+  finally{$("#askBtn").disabled=false;th.scrollTop=th.scrollHeight}}
+$("#askForm").onsubmit=e=>{e.preventDefault();ask()};
+
+/* copy / downloads */
+const slug=()=>(DATA.requirements.app_type||"design").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+$("#copyCfn").onclick=()=>navigator.clipboard.writeText(DATA.options[CUR].cloudformation).then(()=>toast("Template copied"));
+$("#copyMer").onclick=()=>navigator.clipboard.writeText(DATA.options[CUR].diagram).then(()=>toast("Diagram code copied"));
+$("#cfnBtn").onclick=()=>download(`${slug()}-${DATA.options[CUR].name.toLowerCase()}-template.yaml`,new Blob([DATA.options[CUR].cloudformation],{type:"text/yaml"}));
+$("#jsonBtn").onclick=()=>download(`${slug()}-${DATA.id}.json`,new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"}));
+
+/* ---------------- report (PDF / Word) ---------------- */
+function svgToPng(svg,maxW){return new Promise(res=>{
+  try{const doc=new DOMParser().parseFromString(svg,"image/svg+xml"),el=doc.documentElement;const vb=(el.getAttribute("viewBox")||"0 0 800 500").split(/[\s,]+/).map(Number);
+    const w=vb[2]||800,h=vb[3]||500,scale=Math.min(2,(maxW*2)/w);el.setAttribute("width",w);el.setAttribute("height",h);el.removeAttribute("style");
+    const xml=new XMLSerializer().serializeToString(el),img=new Image();
+    img.onload=()=>{const c=document.createElement("canvas");c.width=Math.round(w*scale);c.height=Math.round(h*scale);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);res({src:c.toDataURL("image/png"),w,h})};
+    img.onerror=()=>res(null);img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml)}catch(e){res(null)}})}
+async function buildReport(){
+  const r=DATA.requirements,rec=DATA.options.find(o=>o.name===DATA.recommended)||DATA.options[0],d=new Date((DATA.created||Date.now()/1000)*1000);
+  const imgs=[];for(const o of DATA.options){let im=null;try{im=await svgToPng(await renderMermaid(o.diagram,true),700)}catch(e){}imgs.push(im)}
+  const css=`font-family:Arial,Helvetica,sans-serif;color:#0B1F33;font-size:11pt;line-height:1.45`;
+  const th=`style="text-align:left;border-bottom:1.5px solid #0B1F33;padding:5px 7px;font-size:9.5pt;color:#46596D"`,td=`style="border-bottom:1px solid #D5DEE8;padding:5px 7px;font-size:10pt"`,tdn=`style="border-bottom:1px solid #D5DEE8;padding:5px 7px;font-size:10pt;text-align:right"`;
+  const h2=t=>`<h2 style="font-size:15pt;margin:22px 0 8px;color:#0B1F33;border-bottom:2px solid #2747D6;padding-bottom:4px">${t}</h2>`;
+  const feats=[r.needs_ai&&"AI features",r.needs_search&&"Full-text search",r.needs_realtime&&"Real-time streaming"].filter(Boolean).join(", ")||"None";
+  let h=`<div style="${css}">
+  <div style="border:2px solid #0B1F33;padding:18px 20px">
+    <div style="font-size:10pt;color:#2747D6;font-weight:bold">CloudArch Advisor · Architecture report</div>
+    <div style="font-size:22pt;font-weight:bold;margin:6px 0 4px">${esc(r.app_type)}</div>
+    <div style="font-size:10pt;color:#46596D">Prepared for ${esc(DATA.owner||"Guest")} on ${d.toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"})} · Design ${esc(DATA.id)}</div></div>
+  ${h2("1. Summary")}
+  <p>For a ${esc(r.app_type.toLowerCase())} with about ${Number(r.monthly_users).toLocaleString()} monthly users and a budget of ${money(r.budget)} per month, the recommended design is <b>${esc(rec.name)}</b> at an estimated <b>${money(rec.monthly_cost)} per month</b>, with an overall Well-Architected score of <b>${rec.scores.overall.toFixed(2)} out of 5</b>.</p>
+  <p style="margin-top:6px">${esc(rec.reasoning)}</p>
+  ${h2("2. Requirements")}
+  <table style="border-collapse:collapse;width:100%"><tbody>${[["Application",r.app_type],["Description",r.description||"-"],["Monthly active users",Number(r.monthly_users).toLocaleString()],["Monthly budget",money(r.budget)],["Team size",r.team_size],["Target availability",r.availability+"%"],["Compliance",(COMP.find(c=>c[0]===r.compliance)||[0,"None"])[1]],["Features",feats],["Knowledge base (RAG)",r.use_rag?"On":"Off"]].map(([k,v])=>`<tr><td ${td}><b>${k}</b></td><td ${td}>${esc(v)}</td></tr>`).join("")}</tbody></table>
+  ${h2("3. Options compared")}
+  <table style="border-collapse:collapse;width:100%"><thead><tr><th ${th}>Measure</th>${DATA.options.map(o=>`<th ${th}>${esc(o.name)}${o.name===DATA.recommended?" (recommended)":""}</th>`).join("")}</tr></thead><tbody>
+  <tr><td ${td}>Monthly cost</td>${DATA.options.map(o=>`<td ${tdn}>${money(o.monthly_cost)}</td>`).join("")}</tr>
+  <tr><td ${td}>Within budget</td>${DATA.options.map(o=>`<td ${tdn}>${o.within_budget?"Yes":"No"}</td>`).join("")}</tr>
+  <tr><td ${td}>Components</td>${DATA.options.map(o=>`<td ${tdn}>${o.components.length}</td>`).join("")}</tr>
+  ${PIL.map(([k,l])=>`<tr><td ${td}>${l}</td>${DATA.options.map(o=>`<td ${tdn}>${o.scores[k].toFixed(1)}</td>`).join("")}</tr>`).join("")}
+  <tr><td ${td}><b>Overall score</b></td>${DATA.options.map(o=>`<td ${tdn}><b>${o.scores.overall.toFixed(2)}</b></td>`).join("")}</tr></tbody></table>`;
+  DATA.options.forEach((o,i)=>{const im=imgs[i];
+    h+=`<div style="page-break-before:always"></div>${h2(`${4+i}. ${esc(o.name)} design`)}
+    <p><b>Estimated cost:</b> ${money(o.monthly_cost)} per month (${o.within_budget?"within":"over"} budget) · <b>Overall score:</b> ${o.scores.overall.toFixed(2)} / 5 · <b>Source:</b> ${o.source==="llm"?"generated by AI":"rule-based fallback"}</p>
+    ${im?`<div style="border:1.5px solid #0B1F33;padding:8px;margin:10px 0;text-align:center"><img src="${im.src}" style="max-width:100%;width:${Math.min(680,im.w)}px"></div>`:""}
+    <p><b>Why.</b> ${esc(o.reasoning)}</p>${o.tradeoffs?`<p style="margin-top:6px"><b>Trade-offs.</b> ${esc(o.tradeoffs)}</p>`:""}
+    ${o.notes.length?`<p style="margin-top:6px;background:#FDF3E1;border-left:3px solid #E8A33D;padding:6px 8px"><b>Guardrails.</b> ${o.notes.map(esc).join(" ")}</p>`:""}
+    <table style="border-collapse:collapse;width:100%;margin-top:10px"><thead><tr><th ${th}>Service</th><th ${th}>Layer</th><th ${th} style="text-align:right">Per month</th></tr></thead><tbody>
+    ${[...o.components].sort((a,b)=>b.cost-a.cost).map(c=>`<tr><td ${td}>${esc(c.name)}</td><td ${td}>${esc((LAYERS.find(l=>l[0]===c.layer)||[0,c.layer])[1])}</td><td ${tdn}>${money(c.cost)}</td></tr>`).join("")}
+    <tr><td ${td}><b>Total</b></td><td ${td}></td><td ${tdn}><b>${money(o.monthly_cost)}</b></td></tr></tbody></table>`});
+  h+=`<div style="page-break-before:always"></div>${h2(`${4+DATA.options.length}. Knowledge used`)}
+  ${(DATA.sources||[]).length?`<ul>${DATA.sources.map(s=>`<li><b>${esc(s.source)}</b> (relevance ${s.score}): ${esc(s.text.replace(/^#+\s*/gm,"").slice(0,220))}…</li>`).join("")}</ul>`:"<p>The knowledge base was turned off for this design.</p>"}
+  <p style="font-size:9.5pt;color:#46596D">Model: ${esc(DATA.model)} (${esc(DATA.provider)}). Retriever: ${esc(DATA.retriever||"none")}. Costs are planning estimates for us-east-1 on-demand pricing; confirm them in the AWS Pricing Calculator before committing.</p>
+  ${h2(`Appendix. CloudFormation starter (${esc(rec.name)})`)}
+  <pre style="font-family:Consolas,monospace;font-size:7.5pt;line-height:1.35;white-space:pre-wrap;border:1px solid #D5DEE8;padding:8px;background:#F6F8FB">${esc(rec.cloudformation)}</pre></div>`;
+  return h}
+$("#pdfBtn").onclick=async()=>{const b=$("#pdfBtn");b.disabled=true;const lbl=b.lastChild.textContent;b.lastChild.textContent="Preparing PDF…";
+  try{const html=await buildReport();
+    if(window.html2pdf){await html2pdf().set({margin:[12,12,14,12],filename:`${slug()}-architecture-report.pdf`,image:{type:"jpeg",quality:.95},html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"]}}).from(html).save();toast("Report downloaded")}
+    else{const w=open("","_blank");w.document.write(`<title>Architecture report</title><body style="margin:24px">${html}<script>print()<\/script></body>`);w.document.close()}}
+  catch(e){toast("The PDF could not be created: "+e.message)}finally{b.disabled=false;b.lastChild.textContent=lbl}};
+$("#docBtn").onclick=async()=>{const html=await buildReport();
+  const doc=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Architecture report</title></head><body>${html}</body></html>`;
+  download(`${slug()}-architecture-report.doc`,new Blob(["﻿",doc],{type:"application/msword"}));toast("Word report downloaded")};
+
+/* ---------------- designs ---------------- */
+async function loadDesigns(){
+  const el=$("#designList");el.innerHTML=`<div class="empty muted">Loading…</div>`;
+  $("#designsSub").textContent=USER?"Your recent designs. Open one to compare, ask questions or download the report.":"Recent guest designs on this demo. Sign in to keep your own.";
+  try{const list=await api("/api/history");
+    if(!list.length){el.innerHTML=`<div class="empty"><h2>No designs yet</h2><p class="muted">Your designs appear here after you generate one.</p><a class="btn primary" href="#/new">Create a design</a></div>`;return}
+    el.innerHTML=`<div class="row h"><span>Product</span><span>Recommended</span><span>Users / budget</span><span>Created</span><span></span></div>`+list.map(h=>{const rec=(h.summary||[]).find(s=>s.name===h.recommended)||(h.summary||[])[0]||{};
+      return `<div class="row"><span><b>${esc(h.app_type)}</b><br><span class="small muted">${esc((COMP.find(c=>c[0]===h.compliance)||[0,"No compliance"])[1])}${h.use_rag?"":" · knowledge base off"}</span></span>
+      <span>${esc(h.recommended||rec.name||"")}<br><span class="small muted">${rec.cost!=null?money(rec.cost)+"/mo · "+Number(rec.overall).toFixed(1)+"/5":""}</span></span>
+      <span class="small">${Number(h.users).toLocaleString()} users<br>${money(h.budget)}/mo</span><span class="small muted">${new Date(h.ts*1000).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})}</span>
+      <a class="btn" href="#/design/${encodeURIComponent(h.id)}">Open</a></div>`}).join("")}
+  catch(e){el.innerHTML=`<div class="empty"><p>Designs could not be loaded: ${esc(e.message)}</p></div>`}}
+
+/* ---------------- knowledge base ---------------- */
+let KB=null;
+function md(t){let h="";esc(t).split(/\n\s*\n/).forEach(b=>{const lines=b.split("\n");let first=lines[0];
+  if(/^#{1,3} /.test(first)){const lvl=first.startsWith("# ")?1:2;h+=`<h${lvl}>${first.replace(/^#+\s*/,"")}</h${lvl}>`;lines.shift()}
+  const rest=lines.join(" ").trim();if(rest)h+=`<p>${rest}</p>`});return h}
+async function loadKb(){
+  if(!KB){$("#kbList").innerHTML=`<p class="muted" style="padding:12px">Loading…</p>`;try{KB=await api("/api/kb")}catch(e){$("#kbList").innerHTML=`<p class="err" style="padding:12px">${esc(e.message)}</p>`;return}}
+  $("#kbList").innerHTML=KB.map((d,i)=>`<button data-i="${i}"><b>${esc(d.title)}</b><span>${d.words} words</span></button>`).join("");
+  const open=i=>{$$("#kbList button").forEach(b=>b.setAttribute("aria-current",+b.dataset.i===i));$("#kbDoc").innerHTML=md(KB[i].text)+`<p class="small muted">Source file: ${esc(KB[i].name)}</p>`};
+  $$("#kbList button").forEach(b=>b.onclick=()=>open(+b.dataset.i));open(0)}
+async function loadHealth(){try{const h=await api("/api/health");$("#healthLine").textContent=`This deployment: ${h.provider} model ${h.model}, ${h.retriever} retrieval, ${h.persistent_store?"persistent storage":"in-memory storage (connect Upstash Redis to keep data)"}.`}catch(e){}}
+
+/* ---------------- boot ---------------- */
+(async()=>{
+  if(TOKEN){try{USER=(await api("/api/auth/me")).user;enterApp();return}catch(e){store.del("ca_token");TOKEN=null}}
+  if(store.get("ca_guest")){enterApp();return}
+  showAuth();
+})();
 </script>
 </body>
 </html>

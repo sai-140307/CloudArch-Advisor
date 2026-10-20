@@ -71,11 +71,14 @@ Return JSON exactly in this shape:
 {{"name":"Balanced",...}},{{"name":"High-availability",...}}]}}"""
 
 
-def call_llm(prompt):
-    return _gemini(prompt) if PROVIDER == "gemini" else _bedrock(prompt)
+def call_llm(prompt, json_mode=True, system=None):
+    system = system or SYSTEM
+    if PROVIDER == "gemini":
+        return _gemini(prompt, json_mode, system)
+    return _bedrock(prompt, system)
 
 
-def _gemini(prompt):
+def _gemini(prompt, json_mode=True, system=SYSTEM):
     """Try the configured model, then fallbacks if a model is retired, over quota or overloaded.
     Thinking is switched off / set low: architecture JSON does not need long reasoning
     and thinking tokens made responses exceed the API timeout."""
@@ -89,7 +92,7 @@ def _gemini(prompt):
             if left < 5:
                 raise last or RuntimeError("Gemini timed out")
             try:
-                return _gemini_call(model, prompt, thinking, min(left, 45))
+                return _gemini_call(model, prompt, thinking, min(left, 45), json_mode, system)
             except TimeoutError:
                 last = RuntimeError(f"Gemini {model} timed out")
                 print(last)
@@ -109,13 +112,15 @@ def _gemini(prompt):
     raise last
 
 
-def _gemini_call(model, prompt, thinking, timeout):
+def _gemini_call(model, prompt, thinking, timeout, json_mode=True, system=SYSTEM):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    cfg = {"temperature": 0.2, "maxOutputTokens": 3000, "responseMimeType": "application/json"}
+    cfg = {"temperature": 0.2, "maxOutputTokens": 3000}
+    if json_mode:
+        cfg["responseMimeType"] = "application/json"
     if thinking:
         cfg["thinkingConfig"] = ({"thinkingBudget": 0} if model.startswith("gemini-2.5-flash")
                                  else {"thinkingLevel": "low"})
-    body = {"systemInstruction": {"parts": [{"text": SYSTEM}]},
+    body = {"systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": cfg}
     req = urllib.request.Request(url, json.dumps(body).encode(),
@@ -126,10 +131,10 @@ def _gemini_call(model, prompt, thinking, timeout):
     return "".join(p.get("text", "") for p in j["candidates"][0]["content"]["parts"] if not p.get("thought"))
 
 
-def _bedrock(prompt):
+def _bedrock(prompt, system=SYSTEM):
     r = bedrock().converse(
         modelId=MODEL_ID,
-        system=[{"text": SYSTEM}],
+        system=[{"text": system}],
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         inferenceConfig={"maxTokens": 2000, "temperature": 0.2},
     )

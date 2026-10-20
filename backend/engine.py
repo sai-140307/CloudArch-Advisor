@@ -92,7 +92,8 @@ def apply_guardrails(ids, req):
 
 def monthly_cost(ids, users):
     t = tier_for(users)
-    items = [{"id": i, "name": CATALOG[i]["name"], "cost": CATALOG[i]["cost"][t]} for i in ids]
+    items = [{"id": i, "name": CATALOG[i]["name"], "cost": CATALOG[i]["cost"][t],
+              "layer": CATALOG[i]["layer"], "tiers": list(CATALOG[i]["cost"])} for i in ids]
     return round(sum(x["cost"] for x in items), 2), items
 
 

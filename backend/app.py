@@ -1,28 +1,37 @@
-"""AWS Lambda entry point (behind API Gateway HTTP API).
+"""HTTP entry point (AWS Lambda event format; Vercel adapts to it in api/index.py).
 
 Routes
-  GET  /                -> web UI (index.html)
-  POST /api/recommend   -> run the full pipeline
-  GET  /api/history     -> last requests from DynamoDB
-  GET  /api/health      -> config / status
-  (direct invoke) {"action": "reindex"} -> rebuild the vector index
+  GET  /                      web UI (index.html)
+  POST /api/auth/signup       {name, email, password} -> {token, user}
+  POST /api/auth/login        {email, password}       -> {token, user}
+  GET  /api/auth/me           current user (Bearer token)
+  POST /api/recommend         run the full pipeline (saved to the user's designs)
+  GET  /api/history           the user's recent designs (guest designs when signed out)
+  GET  /api/design/<id>       one saved design in full
+  POST /api/ask               follow-up question about a design (RAG + LLM)
+  GET  /api/kb                knowledge-base documents
+  GET  /api/health            configuration / status
+  (direct invoke) {"action": "reindex"} | {"action": "selftest"}
 """
 import base64
 import json
 import os
+import re
 import time
 import uuid
 from decimal import Decimal
 
+import auth
 import engine
 import llm
 import rag
+import store
 
 TABLE = os.environ.get("TABLE_NAME", "")
 HERE = os.path.dirname(os.path.abspath(__file__))
 MOCK = bool(os.environ.get("MOCK_LLM"))
+DESIGN_TTL = 30 * 24 * 3600
 _ddb = None
-_mem_history = []   # used when neither DynamoDB nor S3 is configured (e.g. Vercel)
 
 
 def table():
@@ -36,11 +45,17 @@ def table():
 def resp(code, body, ctype="application/json"):
     return {"statusCode": code,
             "headers": {"Content-Type": ctype, "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
                         "Cache-Control": "no-store"},
             "body": body if isinstance(body, str) else json.dumps(body, default=str)}
 
 
-def recommend(raw):
+def owner_key(user):
+    return f"designs:{user['email']}" if user else "designs:guest"
+
+
+# ------------------------------------------------------------------ pipeline
+def recommend(raw, user=None):
     t0 = time.time()
     req = engine.normalise_req(raw)
     timings = {}
@@ -71,7 +86,7 @@ def recommend(raw):
         llm_error = "MOCK_LLM enabled"
     timings["generate_s"] = round(time.time() - t, 2)
 
-    # 3. Validate + guardrails + cost + score + diagram (deterministic)
+    # 3. Validate + guardrails + cost + score + diagram + IaC (deterministic)
     options = []
     for name in ("Low-cost", "Balanced", "High-availability"):
         o = llm_opts.get(name.lower())
@@ -84,50 +99,94 @@ def recommend(raw):
                 continue
         options.append(engine.fallback_option(name, req))
 
+    # Recommended = best overall score among options that fit the budget (else the cheapest)
+    fits = [o for o in options if o["within_budget"]]
+    best = max(fits, key=lambda o: o["scores"]["overall"]) if fits else min(options, key=lambda o: o["monthly_cost"])
+
     result = {
         "id": uuid.uuid4().hex[:12],
+        "created": int(time.time()),
+        "owner": user["name"] if user else "Guest",
         "requirements": req,
         "options": options,
-        "sources": [{"source": p["source"], "score": p["score"], "text": p["text"][:300]} for p in passages],
+        "recommended": best["name"],
+        "sources": [{"source": p["source"], "score": p["score"], "text": p["text"][:400]} for p in passages],
         "model": llm.MODEL_ID,
         "provider": llm.PROVIDER,
         "retriever": (rag._index or {}).get("model"),
         "llm_error": llm_error,
         "timings": {**timings, "total_s": round(time.time() - t0, 2)},
     }
-    rec = {"id": result["id"], "ts": int(time.time()),
-           "app_type": req["app_type"], "users": req["monthly_users"],
-           "budget": req["budget"], "compliance": req["compliance"],
-           "use_rag": req["use_rag"],
-           "summary": [{"name": o["name"], "cost": o["monthly_cost"], "overall": o["scores"]["overall"]}
-                       for o in options]}
+    summary = {"id": result["id"], "ts": result["created"], "app_type": req["app_type"],
+               "users": req["monthly_users"], "budget": req["budget"], "compliance": req["compliance"],
+               "use_rag": req["use_rag"], "recommended": best["name"],
+               "summary": [{"name": o["name"], "cost": o["monthly_cost"], "overall": o["scores"]["overall"]}
+                           for o in options]}
     try:
-        if TABLE:
-            table().put_item(Item=json.loads(json.dumps(rec), parse_float=Decimal))
-        elif rag.KB_BUCKET:
-            # History store fallback for accounts without DynamoDB: one JSON object per request in S3.
-            rag.s3().put_object(Bucket=rag.KB_BUCKET, Key=f"history/{9999999999 - rec['ts']}-{rec['id']}.json",
-                                Body=json.dumps(rec).encode(), ContentType="application/json")
-        else:
-            _mem_history.insert(0, rec)
-            del _mem_history[10:]
+        store.set(f"design:{result['id']}", result, ttl=DESIGN_TTL)
+        store.push_recent(owner_key(user), summary)
     except Exception as e:
-        print("History write failed:", repr(e))
+        print("Design save failed:", repr(e))
+    try:   # AWS audit log (DynamoDB in the full profile, S3 in the Academy profile)
+        if TABLE:
+            table().put_item(Item=json.loads(json.dumps(summary), parse_float=Decimal))
+        elif rag.KB_BUCKET:
+            rag.s3().put_object(Bucket=rag.KB_BUCKET, Key=f"history/{9999999999 - summary['ts']}-{summary['id']}.json",
+                                Body=json.dumps(summary).encode(), ContentType="application/json")
+    except Exception as e:
+        print("Audit write failed:", repr(e))
     return result
 
 
-def history():
-    if TABLE:
-        items = table().scan(Limit=50).get("Items", [])
-        items.sort(key=lambda x: -int(x.get("ts", 0)))
-        return items[:10]
-    if not rag.KB_BUCKET:
-        return list(_mem_history)
-    # keys are reverse-timestamped, so the first 10 listed are the newest
-    objs = rag.s3().list_objects_v2(Bucket=rag.KB_BUCKET, Prefix="history/", MaxKeys=10).get("Contents", [])
-    return [json.loads(rag.s3().get_object(Bucket=rag.KB_BUCKET, Key=o["Key"])["Body"].read()) for o in objs]
+# --------------------------------------------------------------- ask the architect
+ASK_SYSTEM = (
+    "You are a senior AWS Solutions Architect answering follow-up questions from a startup team about an "
+    "architecture you recommended. Be concrete and practical, name AWS services exactly, and stay under "
+    "170 words. Use short paragraphs or a few '-' bullet lines; no markdown headings, no tables. "
+    "If the question is unrelated to cloud architecture, say so in one sentence.")
 
 
+def ask(body):
+    q = str(body.get("question", "")).strip()[:500]
+    if not q:
+        return {"answer": "Type a question about this architecture first.", "sources": []}
+    opt = body.get("option") or {}
+    req = body.get("requirements") or {}
+    comps = ", ".join(c.get("name", "") for c in (opt.get("components") or [])[:30])
+    try:
+        passages = rag.retrieve(q, k=4)
+    except Exception:
+        passages = []
+    ctx = "\n".join(f"[{i}] ({p['source']}) {p['text']}" for i, p in enumerate(passages, 1))
+    prompt = (f"Reference knowledge:\n{ctx}\n\n"
+              f"Startup: {req.get('app_type', '')}; {req.get('monthly_users', '')} monthly users; "
+              f"budget ${req.get('budget', '')}/month; compliance {req.get('compliance', 'none')}.\n"
+              f"Chosen option: {opt.get('name', '')} (~${opt.get('monthly_cost', '?')}/month) with: {comps}.\n"
+              f"Why it was chosen: {str(opt.get('reasoning', ''))[:600]}\n\nQuestion: {q}")
+    try:
+        if MOCK:
+            raise RuntimeError("MOCK_LLM enabled")
+        answer = llm.call_llm(prompt, json_mode=False, system=ASK_SYSTEM).strip()
+    except Exception as e:
+        print("Ask failed:", repr(e))
+        answer = ("The AI model is not reachable right now. These knowledge-base passages are the most "
+                  "relevant to your question:\n" + "\n".join(
+                      "- " + re.sub(r"\s+", " ", re.sub(r"(?m)^#+.*$", "", p["text"])).strip()[:220] + "…"
+                      for p in passages[:3]))
+    return {"answer": answer, "sources": [{"source": p["source"], "score": p["score"]} for p in passages]}
+
+
+# --------------------------------------------------------------- knowledge base
+def kb_docs():
+    out = []
+    for name, text in rag.load_docs():
+        m = re.search(r"^#\s+(.+)$", text, flags=re.M)
+        out.append({"name": name, "title": m.group(1).strip() if m else name,
+                    "words": len(text.split()), "text": text})
+    return out
+
+
+# --------------------------------------------------------------- router
 def handler(event, context):
     if event.get("action") == "reindex":
         return rag.build_index()
@@ -144,26 +203,50 @@ def handler(event, context):
         except Exception as e:
             out["embeddings"] = repr(e)[:300]
         return out
+
     http = event.get("requestContext", {}).get("http", {})
     method, path = http.get("method", "GET"), event.get("rawPath", "/")
+    user = auth.user_from_headers(event.get("headers"))
+
+    def body():
+        b = event.get("body") or "{}"
+        if event.get("isBase64Encoded"):
+            b = base64.b64decode(b).decode()
+        return json.loads(b)
+
     try:
         if method == "OPTIONS":
             return resp(204, "")
-        if method == "GET" and path in ("/", "/index.html"):
+        if method == "GET" and path in ("/", "/index.html", "/login", "/app"):
             with open(os.path.join(HERE, "index.html"), encoding="utf-8") as f:
                 return resp(200, f.read(), "text/html; charset=utf-8")
         if method == "GET" and path == "/api/health":
             return resp(200, {"ok": True, "provider": llm.PROVIDER, "model": llm.MODEL_ID,
                               "retriever": rag.RETRIEVER, "kb_bucket": rag.KB_BUCKET or None,
-                              "gemini_key_set": bool(llm.GEMINI_KEY)})
-        if method == "GET" and path == "/api/history":
-            return resp(200, history())
+                              "gemini_key_set": bool(llm.GEMINI_KEY),
+                              "persistent_store": store.PERSISTENT})
+        if method == "POST" and path == "/api/auth/signup":
+            b = body()
+            return resp(200, auth.signup(b.get("name"), b.get("email"), b.get("password")))
+        if method == "POST" and path == "/api/auth/login":
+            b = body()
+            return resp(200, auth.login(b.get("email"), b.get("password")))
+        if method == "GET" and path == "/api/auth/me":
+            return resp(200, {"user": user}) if user else resp(401, {"error": "Not signed in."})
         if method == "POST" and path == "/api/recommend":
-            body = event.get("body") or "{}"
-            if event.get("isBase64Encoded"):
-                body = base64.b64decode(body).decode()
-            return resp(200, recommend(json.loads(body)))
+            return resp(200, recommend(body(), user))
+        if method == "GET" and path == "/api/history":
+            return resp(200, store.recent(owner_key(user), 20))
+        if method == "GET" and path.startswith("/api/design/"):
+            d = store.get(f"design:{path.rsplit('/', 1)[-1][:24]}")
+            return resp(200, d) if d else resp(404, {"error": "This design has expired or does not exist."})
+        if method == "POST" and path == "/api/ask":
+            return resp(200, ask(body()))
+        if method == "GET" and path == "/api/kb":
+            return resp(200, kb_docs())
         return resp(404, {"error": "not found"})
+    except auth.AuthError as e:
+        return resp(e.code, {"error": str(e)})
     except Exception as e:
         print("ERROR", repr(e))
         return resp(500, {"error": str(e)[:300]})
