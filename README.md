@@ -3,6 +3,8 @@
 **Generative AI-Based Cloud Architecture Recommendation Framework for Startup Enterprises using Retrieval-Augmented Generation**
 BCSE355L Cloud Architecture Design · Project
 
+**Live demo:** https://cloudarch-advisor.vercel.app
+
 A startup describes its product, users, budget, team size and compliance needs. CloudArch Advisor returns three AWS
 architectures (**Low-cost**, **Balanced**, **High-availability**), each with:
 
